@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.vite/
+
+.idea/
+.vscode/
+.playwright-mcp/
+
+*.log
+npm-debug.log*
+
+emotion-town-3d-desktop.png
+emotion-town-3d-mobile.png
+3d-scene-after-fix.png
+
+kenney_cube-pets_1.0/
+kenney_mini-characters/
