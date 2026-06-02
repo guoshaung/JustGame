@@ -3,6 +3,15 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 
+const speakText = (text) => {
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "zh-CN";
+    window.speechSynthesis.speak(utterance);
+  }
+};
+
 const MODEL_ROOTS = {
   pets: "/models/cube-pets",
   characters: "/models/mini-characters",
@@ -62,12 +71,6 @@ const npcData = [
   },
 ];
 
-function getDistance(a, b) {
-  const dx = a[0] - b[0];
-  const dz = a[2] - b[2];
-  return Math.sqrt(dx * dx + dz * dz);
-}
-
 class ModelErrorBoundary extends Component {
   constructor(props) {
     super(props);
@@ -88,7 +91,19 @@ function LoadedModel({ url, targetSize = 1.35 }) {
   const gltf = useGLTF(url);
 
   const model = useMemo(() => {
-    const scene = gltf.scene.clone(true);
+    const scene = gltf.scene;
+
+    // 开启阴影投射，并禁用模型自带的可能干扰主渲染器的 Camera 与 Light 节点
+    scene.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+      if (child.isCamera) {
+        child.active = false;
+      }
+    });
+
     const box = new THREE.Box3().setFromObject(scene);
     const size = new THREE.Vector3();
     const center = new THREE.Vector3();
@@ -160,9 +175,23 @@ function House({ position, color }) {
   );
 }
 
-function Npc({ npc }) {
+function Npc({ npc, onInteract }) {
   return (
-    <group position={npc.position}>
+    <group
+      position={npc.position}
+      onClick={(e) => {
+        e.stopPropagation();
+        onInteract(npc);
+      }}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        document.body.style.cursor = "pointer";
+      }}
+      onPointerOut={(e) => {
+        e.stopPropagation();
+        document.body.style.cursor = "auto";
+      }}
+    >
       <ModelLoader
         url={npc.modelUrl}
         targetSize={1.25}
@@ -176,9 +205,9 @@ function Npc({ npc }) {
   );
 }
 
-function Player({ position }) {
+function Player({ playerRef }) {
   return (
-    <group position={position}>
+    <group ref={playerRef} position={[0, 0, 0]}>
       <ModelLoader
         url={`${MODEL_ROOTS.characters}/character-female-a.glb`}
         targetSize={1.55}
@@ -188,105 +217,87 @@ function Player({ position }) {
   );
 }
 
-function getMovementKey(event) {
-  const key = event.key.toLowerCase();
-  const code = event.code.toLowerCase();
-
-  if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key)) {
-    return key;
-  }
-
-  if (code === "keyw") return "w";
-  if (code === "keya") return "a";
-  if (code === "keys") return "s";
-  if (code === "keyd") return "d";
-  if (code === "arrowup") return "arrowup";
-  if (code === "arrowdown") return "arrowdown";
-  if (code === "arrowleft") return "arrowleft";
-  if (code === "arrowright") return "arrowright";
-
-  return "";
-}
-
-function MovementController({ playerPosition, setPlayerPosition, disabled = false }) {
-  const pressedKeys = useRef(new Set());
-  const positionRef = useRef(playerPosition);
+function MovementController({ playerRef, dpadState, onNearbyChange, disabled = false }) {
+  const keysPressed = useRef({ forward: false, backward: false, left: false, right: false });
+  const lastNearbyId = useRef(null);
 
   useEffect(() => {
-    positionRef.current = playerPosition;
-  }, [playerPosition]);
-
-  useEffect(() => {
-    const movementKeys = new Set([
-      "w",
-      "a",
-      "s",
-      "d",
-      "arrowup",
-      "arrowdown",
-      "arrowleft",
-      "arrowright",
-    ]);
-
-    const onKeyDown = (event) => {
-      const key = getMovementKey(event);
-      if (!movementKeys.has(key)) return;
-
-      event.preventDefault();
-      pressedKeys.current.add(key);
+    const handleKeyDown = (e) => {
+      if (disabled) return;
+      const key = e.key.toLowerCase();
+      if (key === "w" || key === "arrowup") keysPressed.current.forward = true;
+      if (key === "s" || key === "arrowdown") keysPressed.current.backward = true;
+      if (key === "a" || key === "arrowleft") keysPressed.current.left = true;
+      if (key === "d" || key === "arrowright") keysPressed.current.right = true;
     };
 
-    const onKeyUp = (event) => {
-      const key = getMovementKey(event);
-      if (key) pressedKeys.current.delete(key);
+    const handleKeyUp = (e) => {
+      const key = e.key.toLowerCase();
+      if (key === "w" || key === "arrowup") keysPressed.current.forward = false;
+      if (key === "s" || key === "arrowdown") keysPressed.current.backward = false;
+      if (key === "a" || key === "arrowleft") keysPressed.current.left = false;
+      if (key === "d" || key === "arrowright") keysPressed.current.right = false;
     };
 
-    const clearKeys = () => pressedKeys.current.clear();
+    const clearKeys = () => {
+      keysPressed.current = { forward: false, backward: false, left: false, right: false };
+    };
 
-    const keyboardTargets = [window, document, document.body].filter(Boolean);
-    const keyOptions = { capture: true, passive: false };
-
-    keyboardTargets.forEach((target) => {
-      target.addEventListener("keydown", onKeyDown, keyOptions);
-      target.addEventListener("keyup", onKeyUp, true);
-    });
+    window.addEventListener("keydown", handleKeyDown, { passive: true });
+    window.addEventListener("keyup", handleKeyUp, { passive: true });
     window.addEventListener("blur", clearKeys);
 
     return () => {
-      keyboardTargets.forEach((target) => {
-        target.removeEventListener("keydown", onKeyDown, true);
-        target.removeEventListener("keyup", onKeyUp, true);
-      });
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", clearKeys);
     };
-  }, []);
+  }, [disabled]);
 
   useFrame((_, delta) => {
-    if (disabled) return;
+    if (!playerRef.current || disabled) return;
 
-    const keys = pressedKeys.current;
-    if (!keys.size) return;
+    const moveForward = keysPressed.current.forward || dpadState.current.forward;
+    const moveBackward = keysPressed.current.backward || dpadState.current.backward;
+    const moveLeft = keysPressed.current.left || dpadState.current.left;
+    const moveRight = keysPressed.current.right || dpadState.current.right;
 
-    const speed = 3.2 * delta;
-    let [nextX, , nextZ] = positionRef.current;
+    if (moveForward || moveBackward || moveLeft || moveRight) {
+      const speed = 4.2 * delta;
+      let nextX = playerRef.current.position.x;
+      let nextZ = playerRef.current.position.z;
 
-    if (keys.has("w") || keys.has("arrowup")) nextZ -= speed;
-    if (keys.has("s") || keys.has("arrowdown")) nextZ += speed;
-    if (keys.has("a") || keys.has("arrowleft")) nextX -= speed;
-    if (keys.has("d") || keys.has("arrowright")) nextX += speed;
+      if (moveForward) nextZ -= speed;
+      if (moveBackward) nextZ += speed;
+      if (moveLeft) nextX -= speed;
+      if (moveRight) nextX += speed;
 
-    nextX = THREE.MathUtils.clamp(nextX, -5.8, 5.8);
-    nextZ = THREE.MathUtils.clamp(nextZ, -5.1, 5.1);
+      nextX = THREE.MathUtils.clamp(nextX, -5.8, 5.8);
+      nextZ = THREE.MathUtils.clamp(nextZ, -5.1, 5.1);
 
-    const nextPosition = [nextX, 0, nextZ];
-    positionRef.current = nextPosition;
-    setPlayerPosition(nextPosition);
+      playerRef.current.position.x = nextX;
+      playerRef.current.position.z = nextZ;
+    }
+
+    // 实时检测主角与小动物的距离
+    const currentPos = playerRef.current.position;
+    const nearby = npcData.find((npc) => {
+      const dx = currentPos.x - npc.position[0];
+      const dz = currentPos.z - npc.position[2];
+      return Math.sqrt(dx * dx + dz * dz) < 1.6;
+    });
+
+    const nearbyId = nearby ? nearby.id : null;
+    if (nearbyId !== lastNearbyId.current) {
+      lastNearbyId.current = nearbyId;
+      onNearbyChange(nearby || null);
+    }
   });
 
   return null;
 }
 
-function FriendshipWorld({ playerPosition, setPlayerPosition, controlsDisabled }) {
+function FriendshipWorld({ playerRef, dpadState, onNearbyChange, controlsDisabled, onNpcInteract }) {
   return (
     <>
       <ambientLight intensity={0.82} />
@@ -308,12 +319,13 @@ function FriendshipWorld({ playerPosition, setPlayerPosition, controlsDisabled }
       <House position={[-4.7, 0, 4.1]} color="#ffd4df" />
       <House position={[4.6, 0, 4.1]} color="#d7f6c9" />
       {npcData.map((npc) => (
-        <Npc npc={npc} key={npc.id} />
+        <Npc npc={npc} key={npc.id} onInteract={onNpcInteract} />
       ))}
-      <Player position={playerPosition} />
+      <Player playerRef={playerRef} />
       <MovementController
-        playerPosition={playerPosition}
-        setPlayerPosition={setPlayerPosition}
+        playerRef={playerRef}
+        dpadState={dpadState}
+        onNearbyChange={onNearbyChange}
         disabled={controlsDisabled}
       />
       <OrbitControls
@@ -336,33 +348,17 @@ function ThreeDFriendshipSquare({
   onReward,
 }) {
   const canvasShellRef = useRef(null);
-  const [playerPosition, setPlayerPosition] = useState([0, 0, 0]);
+  const playerRef = useRef(null);
+  const dpadState = useRef({ forward: false, backward: false, left: false, right: false });
+
+  const [nearbyNpc, setNearbyNpc] = useState(null);
   const [activeNpc, setActiveNpc] = useState(null);
   const [feedback, setFeedback] = useState("");
 
-  const nearbyNpc = useMemo(() => {
-    return npcData.find((npc) => getDistance(playerPosition, npc.position) < 1.45);
-  }, [playerPosition]);
-
-  useEffect(() => {
-    const onKeyDown = (event) => {
-      const isInteractKey =
-        event.key.toLowerCase() === "e" || event.code.toLowerCase() === "keye";
-
-      if (isInteractKey && nearbyNpc && !activeNpc) {
-        event.preventDefault();
-        setActiveNpc(nearbyNpc);
-        setFeedback("");
-      }
-    };
-
-    document.addEventListener("keydown", onKeyDown, { capture: true, passive: false });
-    return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, [activeNpc, nearbyNpc]);
-
-  useEffect(() => {
-    canvasShellRef.current?.focus();
-  }, []);
+  const handleNpcInteract = (npc) => {
+    setActiveNpc(npc);
+    setFeedback("");
+  };
 
   const chooseAnswer = (answer) => {
     if (!activeNpc) return;
@@ -379,6 +375,50 @@ function ThreeDFriendshipSquare({
       setFeedback("这句话可能不够温柔，我们换一种更友好的说法吧。");
     }
   };
+
+  const handleSpeakNpc = () => {
+    if (!activeNpc) return;
+    const textToSpeak = `${activeNpc.name}说：${activeNpc.story}。请选择回答。选项一：${activeNpc.answers[0].text}。选项二：${activeNpc.answers[1].text}。选项三：${activeNpc.answers[2].text}。`;
+    speakText(textToSpeak);
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      const isInteractKey =
+        event.key.toLowerCase() === "e" || event.code.toLowerCase() === "keye";
+
+      if (isInteractKey && nearbyNpc && !activeNpc) {
+        event.preventDefault();
+        handleNpcInteract(nearbyNpc);
+        return;
+      }
+
+      if (activeNpc) {
+        const key = event.key;
+        if (["1", "2", "3"].includes(key)) {
+          const index = parseInt(key) - 1;
+          if (index >= 0 && index < activeNpc.answers.length) {
+            event.preventDefault();
+            chooseAnswer(activeNpc.answers[index]);
+          }
+        }
+        if (key === "Escape") {
+          event.preventDefault();
+          setActiveNpc(null);
+        }
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown, { capture: true, passive: false });
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [activeNpc, nearbyNpc]);
+
+  useEffect(() => {
+    canvasShellRef.current?.focus();
+    return () => {
+      document.body.style.cursor = "auto";
+    };
+  }, []);
 
   const activeTaskDone = activeNpc
     ? completedTasks.includes(`threeD-${activeNpc.id}`)
@@ -400,7 +440,7 @@ function ThreeDFriendshipSquare({
         <span>3D</span>
         <div>
           <h2>3D 友谊广场</h2>
-          <p>用 WASD 或方向键移动主角，靠近小动物后按 E 开始对话。</p>
+          <p>用 WASD / 方向键或右下角虚拟按键移动。靠近或点击小动物开始对话。</p>
         </div>
       </div>
 
@@ -416,21 +456,71 @@ function ThreeDFriendshipSquare({
           shadows
         >
           <FriendshipWorld
-            playerPosition={playerPosition}
-            setPlayerPosition={setPlayerPosition}
+            playerRef={playerRef}
+            dpadState={dpadState}
+            onNearbyChange={setNearbyNpc}
             controlsDisabled={Boolean(activeNpc)}
+            onNpcInteract={handleNpcInteract}
           />
         </Canvas>
-        {nearbyNpc && !activeNpc && (
-          <div className="three-d-near-tip">
-            靠近了{nearbyNpc.name}，按 E 开始对话
+
+        {/* Tactile Virtual D-pad for Kids & Touch Screens */}
+        <div className="virtual-dpad" aria-label="移动控制键">
+          <button
+            className="dpad-btn dpad-up"
+            onPointerDown={() => { dpadState.current.forward = true; }}
+            onPointerUp={() => { dpadState.current.forward = false; }}
+            onPointerLeave={() => { dpadState.current.forward = false; }}
+            onTouchStart={(e) => { e.preventDefault(); dpadState.current.forward = true; }}
+            onTouchEnd={() => { dpadState.current.forward = false; }}
+          >
+            ⬆️
+          </button>
+          <div className="dpad-row">
+            <button
+              className="dpad-btn dpad-left"
+              onPointerDown={() => { dpadState.current.left = true; }}
+              onPointerUp={() => { dpadState.current.left = false; }}
+              onPointerLeave={() => { dpadState.current.left = false; }}
+              onTouchStart={(e) => { e.preventDefault(); dpadState.current.left = true; }}
+              onTouchEnd={() => { dpadState.current.left = false; }}
+            >
+              ⬅️
+            </button>
+            <button
+              className="dpad-btn dpad-down"
+              onPointerDown={() => { dpadState.current.backward = true; }}
+              onPointerUp={() => { dpadState.current.backward = false; }}
+              onPointerLeave={() => { dpadState.current.backward = false; }}
+              onTouchStart={(e) => { e.preventDefault(); dpadState.current.backward = true; }}
+              onTouchEnd={() => { dpadState.current.backward = false; }}
+            >
+              ⬇️
+            </button>
+            <button
+              className="dpad-btn dpad-right"
+              onPointerDown={() => { dpadState.current.right = true; }}
+              onPointerUp={() => { dpadState.current.right = false; }}
+              onPointerLeave={() => { dpadState.current.right = false; }}
+              onTouchStart={(e) => { e.preventDefault(); dpadState.current.right = true; }}
+              onTouchEnd={() => { dpadState.current.right = false; }}
+            >
+              ➡️
+            </button>
           </div>
+        </div>
+
+        {nearbyNpc && !activeNpc && (
+          <button className="three-d-near-tip" onClick={() => handleNpcInteract(nearbyNpc)}>
+            靠近了{nearbyNpc.name}，按 E 或点击这里开始对话
+          </button>
         )}
       </div>
 
       <div className="three-d-help">
-        <span>移动：WASD / 方向键</span>
-        <span>互动：靠近 NPC 后按 E</span>
+        <span>键盘移动：WASD / 方向键</span>
+        <span>屏幕控制：右下角虚拟按键</span>
+        <span>互动：靠近后按 E，或直接点击小动物</span>
         <span>当前 NPC：{nearbyNpc?.name ?? "继续探索"}</span>
       </div>
 
@@ -438,16 +528,28 @@ function ThreeDFriendshipSquare({
         <div className="npc-dialogue-panel">
           <div className="npc-dialogue-header">
             <span style={{ background: activeNpc.color }}>{activeNpc.name}</span>
-            <button onClick={() => setActiveNpc(null)}>关闭</button>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <button
+                className="audio-speak-btn"
+                onClick={handleSpeakNpc}
+                style={{ margin: 0 }}
+                title="语音朗读"
+                aria-label="语音朗读对话"
+              >
+                🔊
+              </button>
+              <button onClick={() => setActiveNpc(null)}>关闭</button>
+            </div>
           </div>
           <p>{activeNpc.story}</p>
           <div className="npc-answer-list">
-            {activeNpc.answers.map((answer) => (
+            {activeNpc.answers.map((answer, index) => (
               <button
                 className="choice-card"
                 key={answer.text}
                 onClick={() => chooseAnswer(answer)}
               >
+                <span className="key-badge">{index + 1}</span>
                 {answer.text}
               </button>
             ))}

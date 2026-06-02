@@ -2,6 +2,86 @@ import { useEffect, useMemo, useReducer, useState } from "react";
 import ThreeDFriendshipSquare from "./scenes/ThreeDFriendshipSquare.jsx";
 
 const STORAGE_KEY = "emotion-post-office-day";
+const SINGLE_STORAGE_KEY = "emotion-post-office-single";
+const DOUBLE_STORAGE_KEY = "emotion-post-office-double";
+
+const doubleStamps = [
+  {
+    id: "coop-patience",
+    name: "合作·耐心等待邮票",
+    icon: "🤝⏳",
+    ability: "耐心与理解",
+    description: "两名小朋友合作帮助小兔平复着急的情绪。"
+  },
+  {
+    id: "coop-polite",
+    name: "合作·礼貌沟通邮票",
+    icon: "🤝🗣️",
+    ability: "沟通与解决",
+    description: "两名小朋友合作帮助小熊礼貌地解决积木冲突。"
+  },
+  {
+    id: "coop-share",
+    name: "合作·社交主动邮票",
+    icon: "🤝🐱",
+    ability: "主动与共情",
+    description: "两名小朋友合作帮助小猫克服不好意思，主动加入游戏。"
+  }
+];
+
+const doubleLetters = [
+  {
+    id: "doubleQueue",
+    sender: "小兔",
+    icon: "🐰",
+    title: "排队等滑梯",
+    event: "小兔排队很久还没有轮到它，它觉得很着急。",
+    clue: "它不停地跺脚，拉着衣角，一直问什么时候能轮到它。",
+    emotion: "anxious",
+    emotionLabel: "着急",
+    destinationName: "排队小站",
+    options: [
+      { text: "我知道你等得很着急，我们可以一起深呼吸，再等一等。", correct: true },
+      { text: "你不要着急，这没什么。", correct: false },
+      { text: "你可以推开别人先去玩。", correct: false }
+    ],
+    skills: ["emotionRecognition", "friendlyReply", "cooperation", "empathy", "turnTaking"]
+  },
+  {
+    id: "doubleBlocks",
+    sender: "小熊",
+    icon: "🐻",
+    title: "积木被碰倒了",
+    event: "小熊的积木被别人碰倒了，它很生气。",
+    clue: "它攥紧了小拳头，大吼了一声，脸都气红了。",
+    emotion: "angry",
+    emotionLabel: "生气",
+    destinationName: "森林操场",
+    options: [
+      { text: "我知道你很生气，我们可以告诉朋友：请小心一点。", correct: true },
+      { text: "你也去推倒他的积木。", correct: false },
+      { text: "不要说话，自己走开。", correct: false }
+    ],
+    skills: ["emotionRecognition", "friendlyReply", "cooperation", "empathy", "turnTaking"]
+  },
+  {
+    id: "doubleToyHouse",
+    sender: "小猫",
+    icon: "🐱",
+    title: "想和大家一起玩",
+    event: "小猫想和大家一起玩，但是不知道怎么开口，它有点难过。",
+    clue: "它抱着尾巴站在一旁，眼巴巴地看着大家，叹了口气。",
+    emotion: "sad",
+    emotionLabel: "难过",
+    destinationName: "玩具屋",
+    options: [
+      { text: "你可以说：我可以和你们一起玩吗？", correct: true },
+      { text: "你就抢一个玩具。", correct: false },
+      { text: "你不要和他们玩了。", correct: false }
+    ],
+    skills: ["emotionRecognition", "friendlyReply", "cooperation", "empathy", "turnTaking"]
+  }
+];
 
 const stamps = [
   {
@@ -179,13 +259,196 @@ const freshState = {
   },
 };
 
-function loadInitialState() {
+function loadSingleState() {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved = localStorage.getItem(SINGLE_STORAGE_KEY) || localStorage.getItem(STORAGE_KEY);
     if (!saved) return freshState;
-    return { ...freshState, ...JSON.parse(saved) };
+    const parsed = JSON.parse(saved);
+    return {
+      ...freshState,
+      ...parsed,
+      currentScene: ["home", "postOffice", "sort", "map", "toyHouse", "playground", "queueStation", "quietCorner", "threeD", "stamps", "report"].includes(parsed.currentScene)
+        ? parsed.currentScene
+        : "home"
+    };
   } catch {
     return freshState;
+  }
+}
+
+const initialDoubleState = {
+  currentScene: "doubleHome",
+  currentPlayer: "A",
+  doubleStep: "intro",
+  activeLetterId: "doubleQueue",
+  playerAChoice: null,
+  playerBReply: null,
+  collectedStamps: [],
+  completedTasks: [],
+  replies: {},
+  stampBursts: [],
+  teamReport: {
+    emotionRecognition: 0,
+    friendlyReply: 0,
+    cooperation: 0,
+    empathy: 0,
+    turnTaking: 0
+  }
+};
+
+function loadDoubleState() {
+  try {
+    const saved = localStorage.getItem(DOUBLE_STORAGE_KEY);
+    if (!saved) return initialDoubleState;
+    const parsed = JSON.parse(saved);
+    return {
+      ...initialDoubleState,
+      ...parsed,
+      currentScene: ["doubleHome", "doubleTask", "doubleStamps", "doubleReport"].includes(parsed.currentScene)
+        ? parsed.currentScene
+        : "doubleHome",
+      teamReport: {
+        ...initialDoubleState.teamReport,
+        ...(parsed.teamReport || {})
+      }
+    };
+  } catch {
+    return initialDoubleState;
+  }
+}
+
+function doubleReducer(state, action) {
+  switch (action.type) {
+    case "NAVIGATE":
+      return {
+        ...state,
+        currentScene: action.scene,
+        activeLetterId: action.letterId ?? state.activeLetterId,
+      };
+    case "START_DOUBLE":
+      return {
+        ...state,
+        doubleStep: "intro"
+      };
+    case "GO_TO_MAILBAG":
+      return {
+        ...state,
+        doubleStep: "choice",
+        currentPlayer: "A",
+        playerAChoice: null,
+        playerBReply: null
+      };
+    case "SELECT_LETTER":
+      return {
+        ...state,
+        activeLetterId: action.letterId,
+        doubleStep: "emotion",
+        currentPlayer: "A",
+        playerAChoice: null,
+        playerBReply: null,
+      };
+    case "PLAYER_A_CHOOSE":
+      return {
+        ...state,
+        playerAChoice: action.emotion,
+      };
+    case "GO_TO_PLAYER_B":
+      return {
+        ...state,
+        currentPlayer: "B",
+        doubleStep: "reply",
+      };
+    case "PLAYER_B_CHOOSE":
+      return {
+        ...state,
+        playerBReply: action.reply,
+      };
+    case "GO_TO_CONFIRM":
+      return {
+        ...state,
+        doubleStep: "confirm"
+      };
+    case "CONFIRM_HELP": {
+      const letter = doubleLetters.find(l => l.id === state.activeLetterId);
+      const taskId = letter.id;
+      const alreadyDone = state.completedTasks.includes(taskId);
+      
+      let nextStamps = [...state.collectedStamps];
+      const stampId = letter.id === "doubleQueue" ? "coop-patience" :
+                      letter.id === "doubleBlocks" ? "coop-polite" :
+                      "coop-share";
+      if (!nextStamps.includes(stampId)) {
+        nextStamps.push(stampId);
+      }
+      
+      const teamReport = { ...state.teamReport };
+      if (!alreadyDone) {
+        teamReport.emotionRecognition = Math.min(100, teamReport.emotionRecognition + 34);
+        teamReport.friendlyReply = Math.min(100, teamReport.friendlyReply + 34);
+        teamReport.cooperation = Math.min(100, teamReport.cooperation + 34);
+        teamReport.empathy = Math.min(100, teamReport.empathy + 34);
+        teamReport.turnTaking = Math.min(100, teamReport.turnTaking + 34);
+      }
+
+      const stampBursts = [
+        ...state.stampBursts,
+        {
+          id: `${taskId}-${Date.now()}`,
+          stampId: stampId
+        }
+      ];
+
+      return {
+        ...state,
+        completedTasks: alreadyDone ? state.completedTasks : [...state.completedTasks, taskId],
+        replies: {
+          ...state.replies,
+          [state.activeLetterId]: state.playerBReply
+        },
+        collectedStamps: nextStamps,
+        teamReport,
+        doubleStep: "complete",
+        stampBursts
+      };
+    }
+    case "CLEAR_STAMP_BURST":
+      return {
+        ...state,
+        stampBursts: state.stampBursts.filter((item) => item.id !== action.id),
+      };
+    case "RESET_DAY":
+      return {
+        ...initialDoubleState,
+        currentScene: state.currentScene
+      };
+    case "DEBUG_UNLOCK_ALL":
+      return {
+        ...state,
+        completedTasks: [],
+      };
+    case "DEBUG_COMPLETE_ALL": {
+      const allCompleted = doubleLetters.map(l => l.id);
+      const allReplies = {};
+      doubleLetters.forEach(l => {
+        allReplies[l.id] = l.options.find(o => o.correct).text;
+      });
+      const allStamps = ["coop-patience", "coop-polite", "coop-share"];
+      return {
+        ...state,
+        completedTasks: allCompleted,
+        replies: allReplies,
+        collectedStamps: allStamps,
+        teamReport: {
+          emotionRecognition: 100,
+          friendlyReply: 100,
+          cooperation: 100,
+          empathy: 100,
+          turnTaking: 100
+        }
+      };
+    }
+    default:
+      return state;
   }
 }
 
@@ -268,15 +531,38 @@ function getLetter(id) {
 }
 
 function App() {
-  const [state, dispatch] = useReducer(gameReducer, undefined, loadInitialState);
-  const activeLetter = getLetter(state.activeLetterId);
+  const [gameMode, setGameMode] = useState(() => {
+    return localStorage.getItem("emotion-post-office-mode") || "choice";
+  });
+  const [singleState, singleDispatch] = useReducer(gameReducer, undefined, loadSingleState);
+  const [doubleState, doubleDispatch] = useReducer(doubleReducer, undefined, loadDoubleState);
+  const [showDebug, setShowDebug] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [state]);
+    localStorage.setItem("emotion-post-office-mode", gameMode);
+  }, [gameMode]);
 
-  const sortedCount = Object.keys(state.sortedLetters).length;
-  const deliveredCount = state.completedTasks.length;
+  useEffect(() => {
+    if (gameMode === "single") {
+      localStorage.setItem(SINGLE_STORAGE_KEY, JSON.stringify(singleState));
+    }
+  }, [singleState, gameMode]);
+
+  useEffect(() => {
+    if (gameMode === "double") {
+      localStorage.setItem(DOUBLE_STORAGE_KEY, JSON.stringify(doubleState));
+    }
+  }, [doubleState, gameMode]);
+
+  const isDouble = gameMode === "double";
+  const state = isDouble ? doubleState : singleState;
+  const dispatch = isDouble ? doubleDispatch : singleDispatch;
+  const activeLetter = isDouble 
+    ? (doubleLetters.find(l => l.id === doubleState.activeLetterId) || doubleLetters[0]) 
+    : getLetter(singleState.activeLetterId);
+
+  const sortedCount = Object.keys(state.sortedLetters || {}).length;
+  const deliveredCount = (state.completedTasks || []).length;
 
   const navigate = (scene, letterId = state.activeLetterId) => {
     dispatch({ type: "NAVIGATE", scene, letterId });
@@ -294,15 +580,24 @@ function App() {
   };
 
   const sceneTitle = useMemo(() => {
-    const location = deliveryLocations.find((item) => item.id === state.currentScene);
-    if (state.currentScene === "home") return "情绪信件的一天";
-    if (state.currentScene === "postOffice") return "情绪邮局";
-    if (state.currentScene === "sort") return "信件分拣台";
-    if (state.currentScene === "map") return "派送路线";
-    if (state.currentScene === "stamps") return "邮票册";
-    if (state.currentScene === "report") return "学习报告";
+    if (gameMode === "double") {
+      if (doubleState.currentScene === "doubleHome") {
+        return doubleState.doubleStep === "intro" ? "协作角色说明" : "双人协作邮局";
+      }
+      if (doubleState.currentScene === "doubleTask") return "双人任务合作区";
+      if (doubleState.currentScene === "doubleStamps") return "合作邮票册";
+      if (doubleState.currentScene === "doubleReport") return "双人合作成长报告";
+      return "双人协作";
+    }
+    const location = deliveryLocations.find((item) => item.id === singleState.currentScene);
+    if (singleState.currentScene === "home") return "情绪信件的一天";
+    if (singleState.currentScene === "postOffice") return "情绪邮局";
+    if (singleState.currentScene === "sort") return "信件分拣台";
+    if (singleState.currentScene === "map") return "派送路线";
+    if (singleState.currentScene === "stamps") return "邮票册";
+    if (singleState.currentScene === "report") return "学习报告";
     return location?.name ?? "情绪任务";
-  }, [state.currentScene]);
+  }, [gameMode, singleState.currentScene, doubleState.currentScene, doubleState.doubleStep]);
 
   const renderScene = () => {
     if (state.currentScene === "home") {
@@ -425,33 +720,111 @@ function App() {
     return null;
   };
 
-  const showBackToRoute = !["home", "postOffice", "sort", "map"].includes(
-    state.currentScene,
+  const showBackToRoute = !isDouble && !["home", "postOffice", "sort", "map"].includes(
+    singleState.currentScene,
   );
+
+  if (gameMode === "choice") {
+    return (
+      <main className="app-shell">
+        <section className="tablet">
+          <ModeChoiceScene
+            onChooseSingle={() => setGameMode("single")}
+            onChooseDouble={() => setGameMode("double")}
+          />
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="app-shell">
       <section className="tablet">
         <header className="top-bar">
           <div>
-            <span className="eyebrow">情绪小邮局 3.0</span>
+            <span className="eyebrow">
+              {isDouble ? "👥 情绪小邮局 5.0 (双人协作版)" : "🎒 情绪小邮局 5.0"}
+            </span>
             <h1>{sceneTitle}</h1>
           </div>
           <div className="global-stats" aria-label="今日邮局进度">
-            <span>📬 {sortedCount}/{letters.length}</span>
-            <span>🎫 {state.collectedStamps.length}/{stamps.length}</span>
-            <span>✅ {deliveredCount}</span>
+            {isDouble ? (
+              <>
+                <span>📬 {doubleState.completedTasks.length}/{doubleLetters.length}</span>
+                <span>🤝 {doubleState.collectedStamps.length}/3</span>
+              </>
+            ) : (
+              <>
+                <span>📬 {sortedCount}/{letters.length}</span>
+                <span>🎫 {singleState.collectedStamps.length}/{stamps.length}</span>
+                <span>✅ {deliveredCount}</span>
+              </>
+            )}
           </div>
         </header>
 
         <nav className="quick-nav" aria-label="邮局流程">
-          <button onClick={() => navigate("postOffice")}>收信</button>
-          <button onClick={() => navigate("sort")}>分拣</button>
-          <button onClick={() => navigate("map")}>派送</button>
-          <button onClick={() => navigate("stamps")}>邮票册</button>
-          <button onClick={() => navigate("report")}>报告</button>
+          {isDouble ? (
+            <>
+              <button onClick={() => doubleDispatch({ type: "NAVIGATE", scene: "doubleHome" })}>双人邮局</button>
+              <button onClick={() => doubleDispatch({ type: "NAVIGATE", scene: "doubleStamps" })}>合作邮票册</button>
+              <button onClick={() => doubleDispatch({ type: "NAVIGATE", scene: "doubleReport" })}>合作报告</button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => navigate("postOffice")}>收信</button>
+              <button onClick={() => navigate("sort")}>分拣</button>
+              <button onClick={() => navigate("map")}>派送</button>
+              <button onClick={() => navigate("stamps")}>邮票册</button>
+              <button onClick={() => navigate("report")}>报告</button>
+            </>
+          )}
           <button onClick={() => dispatch({ type: "RESET_DAY" })}>重置今日</button>
+          <button onClick={() => setGameMode("choice")} style={{ background: "#e2e8f0", color: "#475569", fontWeight: "900" }}>切换模式</button>
+          <button onClick={() => setShowDebug(!showDebug)} style={{ background: "#ffccd5", color: "#8b0000", fontWeight: "900" }}>🛠️ 调试面板</button>
         </nav>
+
+        {showDebug && (
+          <div className="debug-drawer fade-in">
+            <h3>🛠️ 开发者调试工具</h3>
+            {isDouble ? (
+              <div className="debug-section">
+                <h4>双人模式快捷操作：</h4>
+                <div className="debug-buttons">
+                  <button onClick={() => doubleDispatch({ type: "DEBUG_COMPLETE_ALL" })} style={{ background: "#dff4ff" }}>👑 一键送达全通关</button>
+                  <button onClick={() => doubleDispatch({ type: "RESET_DAY" })} style={{ background: "#ffd6d6" }}>🗑️ 清空双人进度</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="debug-section">
+                  <h4>快捷场景跳转：</h4>
+                  <div className="debug-buttons">
+                    <button onClick={() => dispatch({ type: "DEBUG_JUMP", scene: "home" })}>🏠 首页</button>
+                    <button onClick={() => dispatch({ type: "DEBUG_JUMP", scene: "postOffice" })}>💌 收信（今日邮袋）</button>
+                    <button onClick={() => dispatch({ type: "DEBUG_JUMP", scene: "sort" })}>📬 信件分拣台</button>
+                    <button onClick={() => dispatch({ type: "DEBUG_JUMP", scene: "map" })}>🗺️ 派送路线地图</button>
+                    <button onClick={() => dispatch({ type: "DEBUG_JUMP", scene: "toyHouse" })}>🐰 玩具屋（卡牌游戏）</button>
+                    <button onClick={() => dispatch({ type: "DEBUG_JUMP", scene: "playground" })}>🌳 森林操场（角色扮演）</button>
+                    <button onClick={() => dispatch({ type: "DEBUG_JUMP", scene: "queueStation" })}>🚏 排队小站（冷静进度）</button>
+                    <button onClick={() => dispatch({ type: "DEBUG_JUMP", scene: "quietCorner" })}>🌙 安静角落（情绪识别）</button>
+                    <button onClick={() => dispatch({ type: "DEBUG_JUMP", scene: "threeD" })}>🧭 3D探索区</button>
+                    <button onClick={() => dispatch({ type: "DEBUG_JUMP", scene: "stamps" })}>🎫 邮票册</button>
+                    <button onClick={() => dispatch({ type: "DEBUG_JUMP", scene: "report" })}>📊 学习报告</button>
+                  </div>
+                </div>
+                <div className="debug-section">
+                  <h4>快捷作弊与重置：</h4>
+                  <div className="debug-buttons">
+                    <button onClick={() => dispatch({ type: "DEBUG_UNLOCK_ALL" })} style={{ background: "#def8e9" }}>🔓 一键分拣（解锁地图）</button>
+                    <button onClick={() => dispatch({ type: "DEBUG_COMPLETE_ALL" })} style={{ background: "#dff4ff" }}>👑 一键送达全通关</button>
+                    <button onClick={() => dispatch({ type: "RESET_DAY" })} style={{ background: "#ffd6d6" }}>🗑️ 清空今日进度</button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {showBackToRoute && (
           <button className="map-back-button" onClick={() => navigate("map")}>
@@ -462,7 +835,7 @@ function App() {
         <section className="scene-card">{renderScene()}</section>
       </section>
 
-      {state.stampBursts.map((burst) => (
+      {state.stampBursts && state.stampBursts.map((burst) => (
         <StampBurst
           key={burst.id}
           burst={burst}
@@ -556,9 +929,24 @@ function TodayMailbag({ activeLetter, onOpenLetter, sortedLetters = {}, replies 
 }
 
 function LetterReader({ letter }) {
+  const handleSpeak = () => {
+    const textToSpeak = `来自${letter.sender}。信件标题：${letter.title}。发生的事情：${letter.event}。情绪线索：${letter.clue}。目的地：${letter.destinationName}。`;
+    speakText(textToSpeak);
+  };
+
   return (
     <article className="letter-reader">
-      <span className="big-emoji">{letter.icon}</span>
+      <div className="title-with-audio">
+        <span className="big-emoji">{letter.icon}</span>
+        <button
+          className="audio-speak-btn"
+          onClick={handleSpeak}
+          title="语音朗读"
+          aria-label="朗读这封信"
+        >
+          🔊
+        </button>
+      </div>
       <h3>来自{letter.sender}：{letter.title}</h3>
       <p><strong>发生的事情：</strong>{letter.event}</p>
       <p><strong>情绪线索：</strong>{letter.clue}</p>
@@ -606,13 +994,26 @@ function SortScene({ state, activeLetter, onOpenLetter, onSort, onRoute }) {
     }
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (["1", "2", "3", "4"].includes(e.key)) {
+        const index = parseInt(e.key) - 1;
+        if (index < emotionMailboxes.length) {
+          chooseMailbox(emotionMailboxes[index].id);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeLetter, chooseMailbox]);
+
   return (
     <div className="sort-scene fade-in">
       <div className="scene-heading">
         <span>📬</span>
         <div>
           <h2>信件分拣小游戏</h2>
-          <p>读懂线索，把信分到正确的情绪邮箱。</p>
+          <p>读懂线索，把信分到正确的情绪邮箱（支持按 1-4 数字键快捷分拣）。</p>
         </div>
       </div>
       <div className="sort-layout">
@@ -634,14 +1035,15 @@ function SortScene({ state, activeLetter, onOpenLetter, onSort, onRoute }) {
         </aside>
         <LetterReader letter={activeLetter} />
         <section className="mailbox-sorter">
-          {emotionMailboxes.map((mailbox) => (
+          {emotionMailboxes.map((mailbox, index) => (
             <button
-              className={`emotion-mailbox ${
-                selectedMailbox === mailbox.id ? "correct" : ""
+              className={`emotion-mailbox choice-card ${
+                selectedMailbox === mailbox.id ? "correct selected" : ""
               }`}
               key={mailbox.id}
               onClick={() => chooseMailbox(mailbox.id)}
             >
+              <span className="key-badge">{index + 1}</span>
               <span>{mailbox.icon}</span>
               <strong>{mailbox.label}</strong>
             </button>
@@ -722,12 +1124,27 @@ function RouteScene({
 }
 
 function TaskShell({ letter, title, children, replyReady, onReply }) {
+  const handleSpeak = () => {
+    const textToSpeak = `已送达：${letter.sender}的信。发生的事情：${letter.event}。回信目标：${letter.reply}。`;
+    speakText(textToSpeak);
+  };
+
   return (
     <div className="task-shell">
       <section className="delivery-letter">
         <span>{letter.icon}</span>
         <div>
-          <h3>已送达：{letter.sender}的信</h3>
+          <div className="title-with-audio">
+            <h3 style={{ margin: 0 }}>已送达：{letter.sender}的信</h3>
+            <button
+              className="audio-speak-btn"
+              onClick={handleSpeak}
+              title="语音朗读"
+              aria-label="朗读这封信"
+            >
+              🔊
+            </button>
+          </div>
           <p>{letter.event}</p>
           <small>回信目标：{letter.reply}</small>
         </div>
@@ -743,28 +1160,60 @@ function TaskShell({ letter, title, children, replyReady, onReply }) {
 
 function ReplyPanel({ letter, onReply }) {
   const [selected, setSelected] = useState("");
-  const options = [
+  const options = useMemo(() => [
     letter.reply,
     "你不要这样了，我不想理你。",
     "算了，什么都不用说。",
-  ];
+  ], [letter.reply]);
+
+  const handleSpeak = () => {
+    const textToSpeak = `情绪回信。请选择一句友好的回信。选项一：${options[0]}。选项二：${options[1]}。选项三：${options[2]}。`;
+    speakText(textToSpeak);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (["1", "2", "3"].includes(e.key)) {
+        const index = parseInt(e.key) - 1;
+        if (index < options.length) {
+          setSelected(options[index]);
+        }
+      }
+      if (e.key === "Enter" && selected === letter.reply) {
+        onReply(letter.reply);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selected, options, letter.reply, onReply]);
 
   return (
     <section className="reply-panel">
       <div className="section-title">
         <span>✉️</span>
-        <div>
-          <h3>情绪回信</h3>
-          <p>选择一句友好的回信，完成盖邮戳。</p>
+        <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
+          <div>
+            <h3 style={{ margin: 0 }}>情绪回信</h3>
+            <p>选择一句友好的回信，完成盖邮戳（支持按数字键 1-3 选择，Enter 提交）。</p>
+          </div>
+          <button
+            className="audio-speak-btn"
+            onClick={handleSpeak}
+            title="语音朗读"
+            aria-label="朗读情绪回信选项"
+          >
+            🔊
+          </button>
         </div>
       </div>
       <div className="reply-options">
-        {options.map((option) => (
+        {options.map((option, index) => (
           <button
             className={`choice-card ${selected === option ? "selected" : ""}`}
             key={option}
             onClick={() => setSelected(option)}
           >
+            <span className="key-badge">{index + 1}</span>
             {option}
           </button>
         ))}
@@ -773,8 +1222,9 @@ function ReplyPanel({ letter, onReply }) {
         className="primary-button stamp-button"
         disabled={selected !== letter.reply}
         onClick={() => onReply(letter.reply)}
+        style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}
       >
-        盖邮戳并送达
+        盖邮戳并送达 <span className="key-badge" style={{ marginLeft: "12px", marginRight: 0, background: "#fff", borderColor: "#bbb" }}>Enter</span>
       </button>
     </section>
   );
@@ -889,6 +1339,62 @@ function PlaygroundScene({ letter, completeTask, state }) {
   const [feedback, setFeedback] = useState("");
   const taskDone = state.completedTasks.includes(letter.id);
 
+  const round1Options = useMemo(() => [
+    "我有点生气，因为高塔倒了。",
+    "你太坏了！",
+    "我再也不玩了。",
+  ], []);
+
+  const round2Options = useMemo(() => [
+    "下次可以小心一点吗？",
+    "你必须帮我重搭。",
+    "不要碰我的东西！",
+  ], []);
+
+  const handleSpeak = () => {
+    let textToSpeak = "森林操场，角色扮演对话。小狐狸说：我的高塔倒了，我好生气。";
+    if (round === 1) {
+      textToSpeak += "第一步：帮小狐狸说出感受。选项一：我有点生气，因为高塔倒了。选项二：你太坏了。选项三：我再也不玩了。";
+    } else if (round === 2) {
+      textToSpeak += "第二步：提出礼貌请求。选项一：下次可以小心一点吗？选项二：你必须帮我重搭。选项三：不要碰我的东西。";
+    } else {
+      textToSpeak += "小游戏已完成，请在下方写回信。";
+    }
+    speakText(textToSpeak);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (taskDone) return;
+      if (["1", "2", "3"].includes(e.key)) {
+        const index = parseInt(e.key) - 1;
+        if (round === 1) {
+          const option = round1Options[index];
+          if (option) {
+            if (option.startsWith("我有点")) {
+              setRound(2);
+              setFeedback("朋友听懂了小狐狸的感受。");
+            } else {
+              setFeedback("这句话会让朋友更紧张，试试先说自己的感受。");
+            }
+          }
+        } else if (round === 2) {
+          const option = round2Options[index];
+          if (option) {
+            if (option.startsWith("下次")) {
+              setRound(3);
+              setFeedback("可以开始写回信了。");
+            } else {
+              setFeedback("把要求说温柔一点，会更容易被朋友接受。");
+            }
+          }
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [round, round1Options, round2Options, taskDone]);
+
   const finishReply = (reply) => {
     completeTask({
       letterId: letter.id,
@@ -916,67 +1422,88 @@ function PlaygroundScene({ letter, completeTask, state }) {
         {feedback && <div className="dialogue friend-bubble">{feedback}</div>}
       </div>
       <div className="question-panel">
-        {round === 1 && (
-          <>
-            <h3>第一步：帮小狐狸说出感受</h3>
-            {[
-              "我有点生气，因为高塔倒了。",
-              "你太坏了！",
-              "我再也不玩了。",
-            ].map((option) => (
-              <button
-                className="choice-card"
-                key={option}
-                onClick={() => {
-                  if (option.startsWith("我有点")) {
-                    setRound(2);
-                    setFeedback("朋友听懂了小狐狸的感受。");
-                  } else {
-                    setFeedback("这句话会让朋友更紧张，试试先说自己的感受。");
-                  }
-                }}
-              >
-                {option}
-              </button>
-            ))}
-          </>
-        )}
-        {round === 2 && (
-          <>
-            <h3>第二步：提出礼貌请求</h3>
-            {[
-              "下次可以小心一点吗？",
-              "你必须帮我重搭。",
-              "不要碰我的东西！",
-            ].map((option) => (
-              <button
-                className="choice-card"
-                key={option}
-                onClick={() => {
-                  if (option.startsWith("下次")) {
-                    setRound(3);
-                    setFeedback("可以开始写回信了。");
-                  } else {
-                    setFeedback("把要求说温柔一点，会更容易被朋友接受。");
-                  }
-                }}
-              >
-                {option}
-              </button>
-            ))}
-          </>
-        )}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+          <h3 style={{ margin: 0 }}>
+            {round === 1 && "第一步：帮小狐狸说出感受"}
+            {round === 2 && "第二步：提出礼貌请求"}
+            {round === 3 && "第三步：已完成扮演"}
+          </h3>
+          {round < 3 && (
+            <button
+              className="audio-speak-btn"
+              onClick={handleSpeak}
+              title="语音朗读"
+              aria-label="语音朗读选项"
+            >
+              🔊
+            </button>
+          )}
+        </div>
+        {round === 1 && round1Options.map((option, index) => (
+          <button
+            className="choice-card"
+            key={option}
+            onClick={() => {
+              if (option.startsWith("我有点")) {
+                setRound(2);
+                setFeedback("朋友听懂了小狐狸的感受。");
+              } else {
+                setFeedback("这句话会让朋友更紧张，试试先说自己的感受。");
+              }
+            }}
+          >
+            <span className="key-badge">{index + 1}</span>
+            {option}
+          </button>
+        ))}
+        {round === 2 && round2Options.map((option, index) => (
+          <button
+            className="choice-card"
+            key={option}
+            onClick={() => {
+              if (option.startsWith("下次")) {
+                setRound(3);
+                setFeedback("可以开始写回信了。");
+              } else {
+                setFeedback("把要求说温柔一点，会更容易被朋友接受。");
+              }
+            }}
+          >
+            <span className="key-badge">{index + 1}</span>
+            {option}
+          </button>
+        ))}
       </div>
     </TaskShell>
   );
 }
 
 function QueueStationScene({ letter, completeTask, state }) {
-  const calmSteps = ["深呼吸三次", "数到 5", "说：我可以等一等"];
+  const calmSteps = useMemo(() => ["深呼吸三次", "数到 5", "说：我可以等一等"], []);
   const [doneSteps, setDoneSteps] = useState([]);
   const [feedback, setFeedback] = useState("");
   const taskDone = state.completedTasks.includes(letter.id);
   const progress = Math.round((doneSteps.length / calmSteps.length) * 100);
+
+  const handleSpeak = () => {
+    const textToSpeak = `排队小站：冷静进度条小游戏。要让小熊猫在等待时冷静下来，请按 1-3 选择并完成以下步骤。步骤一：${calmSteps[0]}。步骤二：${calmSteps[1]}。步骤三：${calmSteps[2]}。当前进度百分之${progress}。`;
+    speakText(textToSpeak);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (taskDone) return;
+      if (["1", "2", "3"].includes(e.key)) {
+        const index = parseInt(e.key) - 1;
+        const step = calmSteps[index];
+        if (step && !doneSteps.includes(step)) {
+          setDoneSteps((current) => [...current, step]);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [doneSteps, calmSteps, taskDone]);
 
   const finishReply = (reply) => {
     completeTask({
@@ -1004,13 +1531,23 @@ function QueueStationScene({ letter, completeTask, state }) {
           <div className="slide">🛝</div>
         </div>
         <div className="calm-panel">
-          <h3>冷静进度</h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h3 style={{ margin: 0 }}>冷静进度</h3>
+            <button
+              className="audio-speak-btn"
+              onClick={handleSpeak}
+              title="语音朗读"
+              aria-label="朗读冷静步骤"
+            >
+              🔊
+            </button>
+          </div>
           <div className="calm-progress">
             <div style={{ width: `${progress}%` }} />
           </div>
           <p>{progress}%</p>
           <div className="calm-actions">
-            {calmSteps.map((step) => (
+            {calmSteps.map((step, index) => (
               <button
                 className={`choice-card ${doneSteps.includes(step) ? "selected" : ""}`}
                 key={step}
@@ -1020,6 +1557,7 @@ function QueueStationScene({ letter, completeTask, state }) {
                   }
                 }}
               >
+                <span className="key-badge">{index + 1}</span>
                 {step}
               </button>
             ))}
@@ -1038,6 +1576,57 @@ function QuietCornerScene({ letter, completeTask, state }) {
   const [stage, setStage] = useState("emotion");
   const [feedback, setFeedback] = useState("");
   const taskDone = state.completedTasks.includes(letter.id);
+
+  const stageEmotionOptions = useMemo(() => ["开心", "害怕", "生气", "兴奋"], []);
+  const stageComfortOptions = useMemo(() => [
+    "可以先告诉我规则，再陪我试一次吗？",
+    "别怕啦，这有什么好怕的。",
+    "那你就别玩了。",
+  ], []);
+
+  const handleSpeak = () => {
+    let textToSpeak = "安静角落：情绪识别与安慰方式选择小游戏。";
+    if (stage === "emotion") {
+      textToSpeak += "第一步：识别情绪。选项一：开心。选项二：害怕。选项三：生气。选项四：兴奋。";
+    } else if (stage === "comfort") {
+      textToSpeak += "第二步：选择安慰方式。选项一：可以先告诉我规则，再陪我试一次吗？选项二：别怕啦，这有什么好怕的。选项三：那你就别玩了。";
+    } else {
+      textToSpeak += "小游戏已完成，请在下方回信。";
+    }
+    speakText(textToSpeak);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (taskDone) return;
+      if (["1", "2", "3", "4"].includes(e.key)) {
+        const index = parseInt(e.key) - 1;
+        if (stage === "emotion") {
+          const option = stageEmotionOptions[index];
+          if (option) {
+            if (option === "害怕") {
+              setStage("comfort");
+              setFeedback("你从线索里发现了小鹿害怕。");
+            } else {
+              setFeedback("再看看小鹿说的“我怕做错”。");
+            }
+          }
+        } else if (stage === "comfort") {
+          const option = stageComfortOptions[index];
+          if (option) {
+            if (option.startsWith("可以先")) {
+              setStage("reply");
+              setFeedback("这是一句温柔又具体的安慰。");
+            } else {
+              setFeedback("安慰别人时，要先接住对方的感受。");
+            }
+          }
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [stage, stageEmotionOptions, stageComfortOptions, taskDone]);
 
   const finishReply = (reply) => {
     completeTask({
@@ -1064,51 +1653,57 @@ function QuietCornerScene({ letter, completeTask, state }) {
           <div className="soft-light" />
         </div>
         <div className="comfort-panel">
-          {stage === "emotion" ? (
-            <>
-              <h3>第一步：识别情绪</h3>
-              {["开心", "害怕", "生气", "兴奋"].map((option) => (
-                <button
-                  className="choice-card"
-                  key={option}
-                  onClick={() => {
-                    if (option === "害怕") {
-                      setStage("comfort");
-                      setFeedback("你从线索里发现了小鹿害怕。");
-                    } else {
-                      setFeedback("再看看小鹿说的“我怕做错”。");
-                    }
-                  }}
-                >
-                  {option}
-                </button>
-              ))}
-            </>
-          ) : (
-            <>
-              <h3>第二步：选择安慰方式</h3>
-              {[
-                "可以先告诉我规则，再陪我试一次吗？",
-                "别怕啦，这有什么好怕的。",
-                "那你就别玩了。",
-              ].map((option) => (
-                <button
-                  className="choice-card"
-                  key={option}
-                  onClick={() => {
-                    if (option.startsWith("可以先")) {
-                      setStage("reply");
-                      setFeedback("这是一句温柔又具体的安慰。");
-                    } else {
-                      setFeedback("安慰别人时，要先接住对方的感受。");
-                    }
-                  }}
-                >
-                  {option}
-                </button>
-              ))}
-            </>
-          )}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <h3 style={{ margin: 0 }}>
+              {stage === "emotion" && "第一步：识别情绪"}
+              {stage === "comfort" && "第二步：选择安慰方式"}
+              {stage === "reply" && "第三步：已完成选择"}
+            </h3>
+            {stage !== "reply" && (
+              <button
+                className="audio-speak-btn"
+                onClick={handleSpeak}
+                title="语音朗读"
+                aria-label="朗读当前关卡"
+              >
+                🔊
+              </button>
+            )}
+          </div>
+          {stage === "emotion" && stageEmotionOptions.map((option, index) => (
+            <button
+              className="choice-card"
+              key={option}
+              onClick={() => {
+                if (option === "害怕") {
+                  setStage("comfort");
+                  setFeedback("你从线索里发现了小鹿害怕。");
+                } else {
+                  setFeedback("再看看小鹿说的“我怕做错”。");
+                }
+              }}
+            >
+              <span className="key-badge">{index + 1}</span>
+              {option}
+            </button>
+          ))}
+          {stage === "comfort" && stageComfortOptions.map((option, index) => (
+            <button
+              className="choice-card"
+              key={option}
+              onClick={() => {
+                if (option.startsWith("可以先")) {
+                  setStage("reply");
+                  setFeedback("这是一句温柔又具体的安慰。");
+                } else {
+                  setFeedback("安慰别人时，要先接住对方的感受。");
+                }
+              }}
+            >
+              <span className="key-badge">{index + 1}</span>
+              {option}
+            </button>
+          ))}
           {feedback && (
             <div className={`feedback-box ${feedback.startsWith("这是一句") || feedback.startsWith("你从") ? "success" : "gentle"}`}>
               {feedback}
@@ -1257,7 +1852,7 @@ function ReportScene({ state }) {
 }
 
 function StampBurst({ burst, onDone }) {
-  const stamp = stamps.find((item) => item.id === burst.stampId);
+  const stamp = stamps.find((item) => item.id === burst.stampId) || doubleStamps.find((item) => item.id === burst.stampId);
 
   useEffect(() => {
     const timer = window.setTimeout(onDone, 1700);
@@ -1273,6 +1868,457 @@ function StampBurst({ burst, onDone }) {
       <span>情绪信成功送达！</span>
     </div>
   );
+}
+
+// ==================== 双人模式全新场景与组件 ====================
+
+function ModeChoiceScene({ onChooseSingle, onChooseDouble }) {
+  return (
+    <div className="mode-choice-scene fade-in">
+      <header className="mode-choice-header">
+        <h1>选择游戏模式</h1>
+        <p>欢迎来到情绪邮局！请选择你今天的邮递员冒险方式：</p>
+      </header>
+      <div className="mode-cards-grid">
+        <button className="mode-card single-card" onClick={onChooseSingle}>
+          <span className="mode-card-badge">🏠 单人模式</span>
+          <div className="mode-card-icon">🎒</div>
+          <h2>单人小邮递员</h2>
+          <p>自己独立完成情绪信件的分拣与派送，练习情绪识别和友好表达。</p>
+          <div className="mode-card-btn">开始单人模式 &rarr;</div>
+        </button>
+
+        <button className="mode-card double-card" onClick={onChooseDouble}>
+          <span className="mode-card-badge double">🤝 双人协作</span>
+          <div className="mode-card-icon">👥</div>
+          <h2>双人协作邮局</h2>
+          <p>两位小朋友扮演不同角色，共同协作解决情绪挑战，练习分工与共情。</p>
+          <div className="mode-card-btn">进入双人协作 &rarr;</div>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DoubleIntroScene({ onNext }) {
+  return (
+    <div className="double-intro fade-in">
+      <div className="scene-heading">
+        <span>🤝</span>
+        <div>
+          <h2>双人协作模式：小小侦探与回信员</h2>
+          <p>两位小朋友需要分工合作，一起帮助小动物解决情绪问题哦！</p>
+        </div>
+      </div>
+
+      <div className="role-cards-container">
+        <div className="role-intro-card player-a-card">
+          <span className="role-avatar">🔍</span>
+          <h3>玩家 A：情绪侦探</h3>
+          <p>职责：</p>
+          <ul>
+            <li>认真阅读信件。</li>
+            <li>找出信里隐藏的情绪线索。</li>
+            <li>帮助小动物诊断它此刻的情绪。</li>
+          </ul>
+        </div>
+
+        <div className="role-intro-card player-b-card">
+          <span className="role-avatar">✉️</span>
+          <h3>玩家 B：友好回信员</h3>
+          <p>职责：</p>
+          <ul>
+            <li>根据侦探判断的情绪寻找回应方式。</li>
+            <li>选择一句最温暖、最友好的回信。</li>
+            <li>帮助小动物表达需求或解决问题。</li>
+          </ul>
+        </div>
+      </div>
+
+      <div className="coop-rule-box">
+        <h4>📢 合作法则：</h4>
+        <p>情绪判断与回信选择完成后，需要**两个小朋友一起点击确认**才能成功投递哦！</p>
+      </div>
+
+      <div style={{ textAlign: "center", marginTop: "24px" }}>
+        <button className="primary-button" onClick={onNext} style={{ minWidth: "220px" }}>
+          我们准备好了，出发！
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DoubleMailbagScene({ state, onSelectLetter }) {
+  return (
+    <div className="double-mailbag fade-in">
+      <div className="scene-heading">
+        <span>📮</span>
+        <div>
+          <h2>今日协作邮袋</h2>
+          <p>请点击选择一封情绪信，两位小邮递员一起出发吧！</p>
+        </div>
+      </div>
+
+      <div className="mailbag-grid">
+        {doubleLetters.map((letter) => {
+          const completed = state.completedTasks.includes(letter.id);
+          return (
+            <button
+              className={`letter-card ${completed ? "delivered-route" : ""}`}
+              key={letter.id}
+              onClick={() => onSelectLetter(letter.id)}
+            >
+              <span className="letter-sticker">{letter.icon}</span>
+              <strong>{letter.sender}的信</strong>
+              <small>{letter.title}</small>
+              <em>{completed ? "✅ 合作送达" : "⏳ 待合作"}</em>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="double-home-tip">
+        <p>💡 每完成一封信，都能获得一枚特制的**双人合作邮票**，并点亮协作报告！</p>
+      </div>
+    </div>
+  );
+}
+
+function DoubleTaskScene({ state, dispatch, activeLetter, onBackToHome }) {
+  const [feedback, setFeedback] = useState("");
+  const taskDone = state.completedTasks.includes(activeLetter.id);
+  const chosenReply = state.replies[activeLetter.id] || activeLetter.options.find(o => o.correct).text;
+
+  const handleSelectEmotion = (emotionId) => {
+    if (emotionId === activeLetter.emotion) {
+      dispatch({ type: "PLAYER_A_CHOOSE", emotion: emotionId });
+      setFeedback("正确识别情绪！小侦探真棒。现在请点击下方按钮交给玩家 B 吧！");
+    } else {
+      setFeedback(`小动物看起来不像是在${getEmotionLabel(emotionId)}，仔细看看它发生的事或情绪线索吧。`);
+    }
+  };
+
+  const handleSelectReply = (replyText, isCorrect) => {
+    if (isCorrect) {
+      dispatch({ type: "PLAYER_B_CHOOSE", reply: replyText });
+      setFeedback("这是一句非常友好的回信！可以邀请玩家 A 一起进行最终盖戳确认了！");
+    } else {
+      setFeedback("这句话听起来可能会让小动物更难过或生气，再换个温暖的说法吧。");
+    }
+  };
+
+  const getEmotionLabel = (id) => {
+    if (id === "sad") return "难过";
+    if (id === "angry") return "生气";
+    if (id === "anxious") return "着急";
+    if (id === "scared") return "害怕";
+    return id;
+  };
+
+  return (
+    <div className="double-task-area fade-in">
+      <header className="double-task-header">
+        <button className="secondary-button" onClick={onBackToHome}>返回双人邮包</button>
+        <div className="role-indicators">
+          <span className={`role-tag player-a ${state.currentPlayer === "A" && state.doubleStep !== "confirm" && state.doubleStep !== "complete" && !taskDone ? "active" : ""}`}>
+            🔍 玩家 A：情绪侦探
+          </span>
+          <span className={`role-tag player-b ${state.currentPlayer === "B" && state.doubleStep !== "confirm" && state.doubleStep !== "complete" && !taskDone ? "active" : ""}`}>
+            ✉️ 玩家 B：友好回信员
+          </span>
+          {state.doubleStep === "confirm" && !taskDone && <span className="role-tag confirm-tag active">🤝 双人确认</span>}
+        </div>
+      </header>
+
+      <section className="delivery-letter">
+        <span>{activeLetter.icon}</span>
+        <div>
+          <h3>合作送达：{activeLetter.sender}的信</h3>
+          <p>{activeLetter.event}</p>
+          <small><strong>线索：</strong>{activeLetter.clue}</small>
+        </div>
+      </section>
+
+      {taskDone || state.doubleStep === "complete" ? (
+        <div className="double-task-complete-card">
+          <div className="stamp-mark">🤝 合作成功</div>
+          <h2>小动物非常开心！</h2>
+          <p>由于你们的齐心协力，{activeLetter.sender}的问题得到了解决！</p>
+          <div className="coop-summary-box">
+            <p><strong>🕵️ 侦探 A 发现：</strong>它当时感到 <strong>{activeLetter.emotionLabel}</strong></p>
+            <p><strong>✍️ 回信员 B 回信：</strong>“{chosenReply}”</p>
+          </div>
+          <button className="primary-button" onClick={onBackToHome} style={{ marginTop: "20px" }}>
+            返回双人邮包 📮
+          </button>
+        </div>
+      ) : state.doubleStep === "emotion" ? (
+        <div className="coop-step-panel player-a-step">
+          <div className="step-instruction">
+            <h4>第一步：请玩家 A 识别情绪</h4>
+            <p>观察上方的信件与线索，选择小动物此刻的真实心情：</p>
+          </div>
+
+          <div className="choice-card-row">
+            {["sad", "angry", "anxious", "scared"].map((emotionId) => (
+              <button
+                className={`choice-card ${state.playerAChoice === emotionId ? "selected" : ""}`}
+                key={emotionId}
+                onClick={() => handleSelectEmotion(emotionId)}
+              >
+                <span>{emotionId === "sad" ? "💧" : emotionId === "angry" ? "🔥" : emotionId === "anxious" ? "⏳" : "🌙"}</span>
+                <strong>{getEmotionLabel(emotionId)}</strong>
+              </button>
+            ))}
+          </div>
+
+          {feedback && (
+            <div className={`feedback-box ${state.playerAChoice ? "success" : "gentle"}`}>
+              {feedback}
+            </div>
+          )}
+
+          {state.playerAChoice && (
+            <button
+              className="primary-button next-step-btn"
+              onClick={() => {
+                setFeedback("");
+                dispatch({ type: "GO_TO_PLAYER_B" });
+              }}
+            >
+              交给玩家 B 回信 ➡️
+            </button>
+          )}
+        </div>
+      ) : state.doubleStep === "reply" ? (
+        <div className="coop-step-panel player-b-step">
+          <div className="step-instruction">
+            <h4>第二步：请玩家 B 选择温暖回信</h4>
+            <p>玩家 A 判定情绪是：<strong>{getEmotionLabel(state.playerAChoice)}</strong>。请选择一句话安慰它并解决问题：</p>
+          </div>
+
+          <div className="reply-options-list">
+            {activeLetter.options.map((option) => (
+              <button
+                className={`choice-card reply-option-card ${state.playerBReply === option.text ? "selected" : ""}`}
+                key={option.text}
+                onClick={() => handleSelectReply(option.text, option.correct)}
+              >
+                {option.text}
+              </button>
+            ))}
+          </div>
+
+          {feedback && (
+            <div className={`feedback-box ${state.playerBReply ? "success" : "gentle"}`}>
+              {feedback}
+            </div>
+          )}
+
+          {state.playerBReply && (
+            <button
+              className="primary-button next-step-btn"
+              onClick={() => {
+                setFeedback("");
+                dispatch({ type: "GO_TO_CONFIRM" });
+              }}
+            >
+              去双人确认盖邮戳 🤝
+            </button>
+          )}
+        </div>
+      ) : state.doubleStep === "confirm" ? (
+        <div className="coop-step-panel confirm-step">
+          <div className="step-instruction">
+            <h4>第三步：两位小朋友一起来确认吧！</h4>
+            <p>点击“我们确认帮助它”按钮，为信件盖上双人协作邮戳并送出！</p>
+          </div>
+
+          <div className="double-confirm-preview">
+            <div className="confirm-col">
+              <span className="col-icon">🔍</span>
+              <strong>情绪侦探 A</strong>
+              <p>诊断小动物心情：</p>
+              <div className="col-result">{getEmotionLabel(state.playerAChoice)}</div>
+            </div>
+            <div className="confirm-arrow">🤝</div>
+            <div className="confirm-col">
+              <span className="col-icon">✉️</span>
+              <strong>友好回信员 B</strong>
+              <p>发送温暖回信：</p>
+              <div className="col-result-reply">“{state.playerBReply}”</div>
+            </div>
+          </div>
+
+          <button
+            className="primary-button stamp-button large-btn"
+            onClick={() => dispatch({ type: "CONFIRM_HELP" })}
+          >
+            💖 我们确认帮助它！
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DoubleStampsScene({ collectedStamps }) {
+  const [activeStamp, setActiveStamp] = useState(doubleStamps[0]);
+
+  return (
+    <div className="stamp-book fade-in">
+      <div className="scene-heading">
+        <span>🎫</span>
+        <div>
+          <h2>双人合作邮票册</h2>
+          <p>齐心协力，共同收集！已获得 {collectedStamps.length} / {doubleStamps.length}</p>
+        </div>
+      </div>
+      <div className="stamp-layout">
+        <div className="stamp-grid">
+          {doubleStamps.map((stamp) => {
+            const collected = collectedStamps.includes(stamp.id);
+            return (
+              <button
+                className={`stamp-card ${collected ? "collected double-stamp" : "locked"}`}
+                key={stamp.id}
+                onClick={() => setActiveStamp(stamp)}
+              >
+                <span>{stamp.icon}</span>
+                <strong>{stamp.name}</strong>
+                <small>{collected ? "🤝 共同获得" : "待收集"}</small>
+              </button>
+            );
+          })}
+        </div>
+        <article className="stamp-detail">
+          <span>{activeStamp.icon}</span>
+          <h3>{activeStamp.name}</h3>
+          <strong>{activeStamp.ability}</strong>
+          <p>{activeStamp.description}</p>
+        </article>
+      </div>
+    </div>
+  );
+}
+
+function DoubleReportScene({ state }) {
+  const practicedSkills = [
+    ["emotionRecognition", "情绪识别", "玩家 A 正确判断小动物的情绪感受。"],
+    ["friendlyReply", "友好回应", "玩家 B 为小动物选出合适的安慰和回应。"],
+    ["cooperation", "合作解决", "两个小朋友通过分工与讨论做出最终决定。"],
+    ["empathy", "共情关心", "回信选择体现了对他人处境的理解与关怀。"],
+    ["turnTaking", "轮流合作", "按照角色分工与轮流阶段共同完成。"]
+  ];
+
+  return (
+    <div className="report-scene fade-in" style={{ padding: "20px" }}>
+      <div className="scene-heading">
+        <span>📊</span>
+        <div>
+          <h2>双人合作成长报告</h2>
+          <p>这是你们两位小小邮递员共同努力、精诚合作获得的成长轨迹！</p>
+        </div>
+      </div>
+
+      <div className="report-stats">
+        <article style={{ borderLeftColor: "#ffd3df" }}>
+          <strong>{state.completedTasks.length}</strong>
+          <span>合作处理信件</span>
+        </article>
+        <article style={{ borderLeftColor: "#bfe8ff" }}>
+          <strong>{state.collectedStamps.length}</strong>
+          <span>收集合作邮票</span>
+        </article>
+        <article style={{ borderLeftColor: "#fff2bd" }}>
+          <strong>{Math.round(state.completedTasks.length * 33.3)}%</strong>
+          <span>今日协作进度</span>
+        </article>
+      </div>
+
+      <section className="skill-report">
+        <h3>双人协作五维指标</h3>
+        {practicedSkills.map(([key, label, desc]) => (
+          <div className="skill-row" key={key} style={{ display: "block", marginBottom: "18px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "900", marginBottom: "4px" }}>
+              <span>{label}</span>
+              <strong>{state.teamReport[key] ?? 0}%</strong>
+            </div>
+            <div className="skill-track" style={{ height: "16px", borderRadius: "8px" }}>
+              <div style={{ width: `${state.teamReport[key] ?? 0}%`, height: "100%", borderRadius: "8px", background: "#fbd38d" }} />
+            </div>
+            <small style={{ color: "#6c5d56", fontSize: "14px", marginTop: "2px", display: "block" }}>{desc}</small>
+          </div>
+        ))}
+      </section>
+
+      <section className="suggestion-panel">
+        <h3>今日合作寄信记录</h3>
+        {doubleLetters.map((letter) => (
+          <p key={letter.id} style={{ fontSize: "16px", lineHeight: "1.6" }}>
+            {state.replies[letter.id]
+              ? `🤝 成功帮助了【${letter.sender}】：回信说“${state.replies[letter.id]}”`
+              : `⏳ 还未合作处理【${letter.sender}】的信件`}
+          </p>
+        ))}
+      </section>
+    </div>
+  );
+}
+
+function DoubleModeScene({ state, dispatch, onBackToModeChoice }) {
+  const activeLetter = doubleLetters.find(l => l.id === state.activeLetterId) || doubleLetters[0];
+
+  const handleSelectLetter = (letterId) => {
+    dispatch({ type: "SELECT_LETTER", letterId });
+    dispatch({ type: "NAVIGATE", scene: "doubleTask" });
+  };
+
+  if (state.currentScene === "doubleHome") {
+    if (state.doubleStep === "intro") {
+      return (
+        <DoubleIntroScene
+          onNext={() => dispatch({ type: "GO_TO_MAILBAG" })}
+        />
+      );
+    }
+    return (
+      <DoubleMailbagScene
+        state={state}
+        onSelectLetter={handleSelectLetter}
+      />
+    );
+  }
+
+  if (state.currentScene === "doubleTask") {
+    return (
+      <DoubleTaskScene
+        state={state}
+        dispatch={dispatch}
+        activeLetter={activeLetter}
+        onBackToHome={() => dispatch({ type: "NAVIGATE", scene: "doubleHome" })}
+      />
+    );
+  }
+
+  if (state.currentScene === "doubleStamps") {
+    return (
+      <DoubleStampsScene
+        collectedStamps={state.collectedStamps}
+      />
+    );
+  }
+
+  if (state.currentScene === "doubleReport") {
+    return (
+      <DoubleReportScene
+        state={state}
+      />
+    );
+  }
+
+  return null;
 }
 
 export default App;
