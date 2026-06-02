@@ -1,0 +1,9 @@
+{
+  "appId": "com.justgame.emotionpost",
+  "appName": "EmotionPostOffice5",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}
