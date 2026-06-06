@@ -12,6 +12,56 @@ const speakText = (text) => {
   }
 };
 
+function TypewriterText({ text, speed = 40, onComplete, playSound = true }) {
+  const [displayedText, setDisplayedText] = useState("");
+
+  useEffect(() => {
+    let index = 0;
+    setDisplayedText("");
+    if (!text) return;
+
+    const playClickSound = () => {
+      if (!playSound || (!window.AudioContext && !window.webkitAudioContext)) return;
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(450 + Math.random() * 150, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(700 + Math.random() * 150, ctx.currentTime + 0.04);
+
+        gain.gain.setValueAtTime(0.012, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.04);
+      } catch (e) {
+        // Silently catch audio blocks
+      }
+    };
+
+    const interval = setInterval(() => {
+      setDisplayedText((prev) => prev + text.charAt(index));
+      playClickSound();
+      index++;
+      if (index >= text.length) {
+        clearInterval(interval);
+        if (onComplete) onComplete();
+      }
+    }, speed);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [text, speed, playSound]);
+
+  return <span>{displayedText}</span>;
+}
+
 const MODEL_ROOTS = {
   pets: "/models/cube-pets",
   characters: "/models/mini-characters",
@@ -541,7 +591,7 @@ function ThreeDFriendshipSquare({
               <button onClick={() => setActiveNpc(null)}>关闭</button>
             </div>
           </div>
-          <p>{activeNpc.story}</p>
+          <p><TypewriterText key={activeNpc.id} text={activeNpc.story} /></p>
           <div className="npc-answer-list">
             {activeNpc.answers.map((answer, index) => (
               <button
@@ -560,7 +610,7 @@ function ThreeDFriendshipSquare({
                 feedback.startsWith("说得真棒") ? "success" : "gentle"
               }`}
             >
-              {feedback}
+              <TypewriterText key={feedback} text={feedback} />
               {activeTaskDone && feedback.startsWith("说得真棒") && (
                 <strong>这个朋友的 3D 对话任务已经完成。</strong>
               )}

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useReducer, useState } from "react";
+﻿import { useEffect, useMemo, useReducer, useState } from "react";
 import ThreeDFriendshipSquare from "./scenes/ThreeDFriendshipSquare.jsx";
+import V2EmotionPostOffice from "./scenes/V2EmotionPostOffice.jsx";
 
 const STORAGE_KEY = "emotion-post-office-day";
 const SINGLE_STORAGE_KEY = "emotion-post-office-single";
@@ -454,6 +455,38 @@ function doubleReducer(state, action) {
 
 function gameReducer(state, action) {
   switch (action.type) {
+    case "DEBUG_JUMP":
+      return {
+        ...state,
+        currentScene: action.scene,
+      };
+    case "DEBUG_UNLOCK_ALL":
+      return {
+        ...state,
+        sortedLetters: Object.fromEntries(
+          letters.map((letter) => [letter.id, letter.emotion]),
+        ),
+      };
+    case "DEBUG_COMPLETE_ALL":
+      return {
+        ...state,
+        sortedLetters: Object.fromEntries(
+          letters.map((letter) => [letter.id, letter.emotion]),
+        ),
+        deliveredLetters: letters.map((letter) => letter.id),
+        replies: Object.fromEntries(
+          letters.map((letter) => [letter.id, letter.reply]),
+        ),
+        collectedStamps: stamps.map((stamp) => stamp.id),
+        completedTasks: letters.map((letter) => letter.id),
+        skillScores: {
+          emotion: 100,
+          need: 100,
+          polite: 100,
+          patience: 100,
+          empathy: 100,
+        },
+      };
     case "NAVIGATE":
       return {
         ...state,
@@ -532,7 +565,8 @@ function getLetter(id) {
 
 function App() {
   const [gameMode, setGameMode] = useState(() => {
-    return localStorage.getItem("emotion-post-office-mode") || "choice";
+    const savedMode = localStorage.getItem("emotion-post-office-mode");
+    return ["choice", "single", "double"].includes(savedMode) ? savedMode : "choice";
   });
   const [singleState, singleDispatch] = useReducer(gameReducer, undefined, loadSingleState);
   const [doubleState, doubleDispatch] = useReducer(doubleReducer, undefined, loadDoubleState);
@@ -600,6 +634,16 @@ function App() {
   }, [gameMode, singleState.currentScene, doubleState.currentScene, doubleState.doubleStep]);
 
   const renderScene = () => {
+    if (isDouble) {
+      return (
+        <DoubleModeScene
+          state={doubleState}
+          dispatch={doubleDispatch}
+          onBackToModeChoice={() => setGameMode("choice")}
+        />
+      );
+    }
+
     if (state.currentScene === "home") {
       return (
         <HomeScene
@@ -1716,6 +1760,7 @@ function QuietCornerScene({ letter, completeTask, state }) {
 }
 
 function ThreeDScene({ completeTask, state, navigate, letter }) {
+  const [threeDMode, setThreeDMode] = useState("hub");
   const taskDone = state.completedTasks.includes(letter.id);
 
   const finishReply = (reply) => {
@@ -1728,27 +1773,66 @@ function ThreeDScene({ completeTask, state, navigate, letter }) {
     });
   };
 
+  if (threeDMode === "starMail") {
+    return (
+      <div className="mini-game fade-in">
+        <V2EmotionPostOffice onBackToModeChoice={() => setThreeDMode("hub")} />
+      </div>
+    );
+  }
+
+  if (threeDMode === "friendshipSquare") {
+    return (
+      <div className="mini-game fade-in">
+        <TaskShell
+          letter={letter}
+          title="3D探索区：友谊广场"
+          replyReady={taskDone}
+          onReply={finishReply}
+        >
+          <ThreeDFriendshipSquare
+            stars={state.completedTasks.length}
+            stampCount={state.collectedStamps.length}
+            completedTasks={state.completedTasks}
+            onBackToMap={() => setThreeDMode("hub")}
+            onReward={() => finishReply(letter.reply)}
+          />
+          {!taskDone && (
+            <button className="primary-button stamp-button" onClick={() => finishReply(letter.reply)}>
+              完成 3D 探索并盖邮戳
+            </button>
+          )}
+        </TaskShell>
+      </div>
+    );
+  }
+
   return (
-    <div className="mini-game fade-in">
-      <TaskShell
-        letter={letter}
-        title="3D探索区：Three.js 场景入口"
-        replyReady={taskDone}
-        onReply={finishReply}
-      >
-        <ThreeDFriendshipSquare
-          stars={state.completedTasks.length}
-          stampCount={state.collectedStamps.length}
-          completedTasks={state.completedTasks}
-          onBackToMap={() => navigate("map")}
-          onReward={() => finishReply(letter.reply)}
-        />
-        {!taskDone && (
-          <button className="primary-button stamp-button" onClick={() => finishReply(letter.reply)}>
-            完成 3D 探索并盖邮戳
-          </button>
-        )}
-      </TaskShell>
+    <div className="three-d-module-hub fade-in">
+      <div className="scene-heading">
+        <span>🧭</span>
+        <div>
+          <h2>3D 探索乐园</h2>
+          <p>这是主游戏中的附属模块。选择一个 3D 小游戏，完成后再返回派送路线。</p>
+        </div>
+      </div>
+      <div className="three-d-module-grid">
+        <button onClick={() => setThreeDMode("friendshipSquare")}>
+          <span>🏡</span>
+          <strong>友谊广场</strong>
+          <p>控制小邮递员寻找动物朋友，通过对话练习友好表达。</p>
+          <em>{taskDone ? "已完成主线邮戳" : "可获得主线邮戳"}</em>
+        </button>
+        <button onClick={() => setThreeDMode("starMail")}>
+          <span>✉️</span>
+          <strong>星光邮件季</strong>
+          <p>探索四个房间，收集漂浮邮件，完成情绪判断和邮件卡牌挑战。</p>
+          <em>附属收集玩法</em>
+        </button>
+      </div>
+      <button className="secondary-button" onClick={() => navigate("map")}>
+        返回派送路线
+      </button>
     </div>
   );
 }
