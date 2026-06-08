@@ -267,9 +267,18 @@ function Player({ playerRef }) {
   );
 }
 
+function dampAngle(current, target, smoothing, delta) {
+  const shortestTurn = THREE.MathUtils.euclideanModulo(
+    target - current + Math.PI,
+    Math.PI * 2,
+  ) - Math.PI;
+  return THREE.MathUtils.damp(current, current + shortestTurn, smoothing, delta);
+}
+
 function MovementController({ playerRef, dpadState, onNearbyChange, disabled = false }) {
   const keysPressed = useRef({ forward: false, backward: false, left: false, right: false });
   const lastNearbyId = useRef(null);
+  const targetRotation = useRef(0);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -314,20 +323,28 @@ function MovementController({ playerRef, dpadState, onNearbyChange, disabled = f
 
     if (moveForward || moveBackward || moveLeft || moveRight) {
       const speed = 4.2 * delta;
+      const moveX = (moveRight ? 1 : 0) - (moveLeft ? 1 : 0);
+      const moveZ = (moveBackward ? 1 : 0) - (moveForward ? 1 : 0);
+      const moveLength = Math.hypot(moveX, moveZ) || 1;
       let nextX = playerRef.current.position.x;
       let nextZ = playerRef.current.position.z;
 
-      if (moveForward) nextZ -= speed;
-      if (moveBackward) nextZ += speed;
-      if (moveLeft) nextX -= speed;
-      if (moveRight) nextX += speed;
+      nextX += (moveX / moveLength) * speed;
+      nextZ += (moveZ / moveLength) * speed;
 
       nextX = THREE.MathUtils.clamp(nextX, -5.8, 5.8);
       nextZ = THREE.MathUtils.clamp(nextZ, -5.1, 5.1);
 
       playerRef.current.position.x = nextX;
       playerRef.current.position.z = nextZ;
+      targetRotation.current = Math.atan2(moveX, moveZ);
     }
+    playerRef.current.rotation.y = dampAngle(
+      playerRef.current.rotation.y,
+      targetRotation.current,
+      14,
+      delta,
+    );
 
     // 实时检测主角与小动物的距离
     const currentPos = playerRef.current.position;

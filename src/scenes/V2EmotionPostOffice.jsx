@@ -448,12 +448,143 @@ function FallbackModel({ color }) {
   );
 }
 
-function Player({ playerRef, label = "星光邮递员", modelUrl = `${MODEL_ROOTS.characters}/character-female-c.glb` }) {
+function CourierModel({ movingRef, showDirection = false }) {
+  const modelRef = useRef(null);
+  const leftArmRef = useRef(null);
+  const rightArmRef = useRef(null);
+  const leftLegRef = useRef(null);
+  const rightLegRef = useRef(null);
+
+  useFrame(({ clock }) => {
+    const moving = Boolean(movingRef?.current);
+    const pace = moving ? 9 : 2.2;
+    const swing = Math.sin(clock.elapsedTime * pace) * (moving ? 0.55 : 0.08);
+    if (leftArmRef.current) leftArmRef.current.rotation.x = swing;
+    if (rightArmRef.current) rightArmRef.current.rotation.x = -swing;
+    if (leftLegRef.current) leftLegRef.current.rotation.x = -swing * 0.62;
+    if (rightLegRef.current) rightLegRef.current.rotation.x = swing * 0.62;
+    if (modelRef.current) {
+      modelRef.current.position.y = Math.sin(clock.elapsedTime * pace * 2) * (moving ? 0.035 : 0.012);
+    }
+  });
+
+  return (
+    <group ref={modelRef}>
+      {showDirection && (
+        <group position={[0, 0.11, 0.52]}>
+          <mesh position={[0, 0, 0.24]} rotation={[Math.PI / 2, 0, 0]} receiveShadow>
+            <coneGeometry args={[0.22, 0.52, 3]} />
+            <meshStandardMaterial
+              color="#ff5f72"
+              emissive="#ff8b98"
+              emissiveIntensity={0.35}
+            />
+          </mesh>
+          <pointLight position={[0, 0.16, 0.2]} color="#ff8b98" intensity={0.7} distance={1.4} />
+        </group>
+      )}
+      <mesh position={[0, 0.06, 0]} receiveShadow>
+        <cylinderGeometry args={[0.42, 0.48, 0.08, 24]} />
+        <meshStandardMaterial color="#d8f5ff" transparent opacity={0.72} />
+      </mesh>
+      <group ref={leftLegRef} position={[-0.19, 0.62, 0]}>
+        <mesh position={[0, -0.28, 0]} castShadow>
+          <capsuleGeometry args={[0.105, 0.42, 8, 14]} />
+          <meshStandardMaterial color="#304b78" />
+        </mesh>
+        <mesh position={[0, -0.55, 0.09]} castShadow>
+          <boxGeometry args={[0.25, 0.16, 0.4]} />
+          <meshStandardMaterial color="#fff8e8" />
+        </mesh>
+      </group>
+      <group ref={rightLegRef} position={[0.19, 0.62, 0]}>
+        <mesh position={[0, -0.28, 0]} castShadow>
+          <capsuleGeometry args={[0.105, 0.42, 8, 14]} />
+          <meshStandardMaterial color="#304b78" />
+        </mesh>
+        <mesh position={[0, -0.55, 0.09]} castShadow>
+          <boxGeometry args={[0.25, 0.16, 0.4]} />
+          <meshStandardMaterial color="#fff8e8" />
+        </mesh>
+      </group>
+      <mesh position={[0, 1.02, 0]} castShadow>
+        <capsuleGeometry args={[0.38, 0.5, 10, 18]} />
+        <meshStandardMaterial color="#72d4f7" roughness={0.52} />
+      </mesh>
+      <mesh position={[0, 1.05, 0.34]} castShadow>
+        <boxGeometry args={[0.42, 0.36, 0.16]} />
+        <meshStandardMaterial color="#ffca5f" />
+      </mesh>
+      <mesh position={[0.25, 1.08, -0.31]} rotation={[0, 0, -0.12]} castShadow>
+        <boxGeometry args={[0.38, 0.5, 0.2]} />
+        <meshStandardMaterial color="#ff8f70" />
+      </mesh>
+      <mesh position={[0.25, 1.1, -0.43]} rotation={[0, 0, -0.12]} castShadow>
+        <boxGeometry args={[0.28, 0.22, 0.06]} />
+        <meshStandardMaterial color="#a94f58" />
+      </mesh>
+      <group ref={leftArmRef} position={[-0.46, 1.25, 0]}>
+        <mesh position={[0, -0.26, 0]} rotation={[0, 0, -0.08]} castShadow>
+          <capsuleGeometry args={[0.105, 0.42, 8, 14]} />
+          <meshStandardMaterial color="#72d4f7" />
+        </mesh>
+        <mesh position={[0, -0.52, 0]} castShadow>
+          <sphereGeometry args={[0.12, 16, 16]} />
+          <meshStandardMaterial color="#ffd8bd" />
+        </mesh>
+      </group>
+      <group ref={rightArmRef} position={[0.46, 1.25, 0]}>
+        <mesh position={[0, -0.26, 0]} rotation={[0, 0, 0.08]} castShadow>
+          <capsuleGeometry args={[0.105, 0.42, 8, 14]} />
+          <meshStandardMaterial color="#72d4f7" />
+        </mesh>
+        <mesh position={[0, -0.52, 0]} castShadow>
+          <sphereGeometry args={[0.12, 16, 16]} />
+          <meshStandardMaterial color="#ffd8bd" />
+        </mesh>
+      </group>
+      <mesh position={[0, 1.76, 0]} castShadow>
+        <sphereGeometry args={[0.38, 28, 28]} />
+        <meshStandardMaterial color="#ffd8bd" roughness={0.7} />
+      </mesh>
+      <mesh position={[0, 1.9, -0.18]} scale={[1.04, 0.74, 0.72]} castShadow>
+        <sphereGeometry args={[0.38, 24, 24]} />
+        <meshStandardMaterial color="#5d3a35" />
+      </mesh>
+      <mesh position={[-0.14, 1.79, 0.34]}>
+        <sphereGeometry args={[0.038, 12, 12]} />
+        <meshStandardMaterial color="#352b2b" />
+      </mesh>
+      <mesh position={[0.14, 1.79, 0.34]}>
+        <sphereGeometry args={[0.038, 12, 12]} />
+        <meshStandardMaterial color="#352b2b" />
+      </mesh>
+      <mesh position={[0, 1.68, 0.365]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.075, 0.018, 8, 20, Math.PI]} />
+        <meshStandardMaterial color="#d06f70" />
+      </mesh>
+      <mesh position={[0, 2.08, 0]} castShadow>
+        <cylinderGeometry args={[0.3, 0.34, 0.18, 24]} />
+        <meshStandardMaterial color="#fff5d6" />
+      </mesh>
+      <mesh position={[0, 2.01, 0.17]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <cylinderGeometry args={[0.42, 0.42, 0.08, 24]} />
+        <meshStandardMaterial color="#ffca5f" />
+      </mesh>
+      <mesh position={[0, 2.1, 0.31]}>
+        <boxGeometry args={[0.15, 0.11, 0.04]} />
+        <meshStandardMaterial color="#ff6f7d" />
+      </mesh>
+    </group>
+  );
+}
+
+function Player({ playerRef, movingRef, label = "星光邮递员" }) {
   return (
     <group ref={playerRef} position={[0, 0, 1.9]}>
       <pointLight position={[0, 1.3, 0.5]} color="#dff7ff" intensity={0.9} distance={3} />
-      <Model url={modelUrl} color="#7cc9ff" targetSize={1.55} />
-      <Html position={[0, 1.75, 0]} center>
+      <CourierModel movingRef={movingRef} />
+      <Html position={[0, 2.42, 0]} center>
         <div className="player-name-tag">{label}</div>
       </Html>
     </group>
@@ -494,24 +625,74 @@ function OpeningDoor({ room, isOpen, isNearby, onEnter }) {
   );
 }
 
-function BoardPlayer({ cell }) {
+const boardDirectionGlyphs = {
+  forward: "↑",
+  backward: "↓",
+  left: "←",
+  right: "→",
+};
+
+function BoardPlayer({ cell, facingDirection }) {
   const groupRef = useRef(null);
+  const movingRef = useRef(false);
+  const animationRef = useRef(null);
   const target = useMemo(() => new THREE.Vector3(...boardToWorld(cell)), [cell.col, cell.row]);
+
+  useEffect(() => {
+    const group = groupRef.current;
+    if (!group) return;
+    const moveX = target.x - group.position.x;
+    const moveZ = target.z - group.position.z;
+    const targetRotation = Math.hypot(moveX, moveZ) > 0.01
+      ? Math.atan2(moveX, moveZ)
+      : group.rotation.y;
+    const shortestTurn = THREE.MathUtils.euclideanModulo(
+      targetRotation - group.rotation.y + Math.PI,
+      Math.PI * 2,
+    ) - Math.PI;
+    animationRef.current = {
+      from: group.position.clone(),
+      to: target.clone(),
+      fromRotation: group.rotation.y,
+      turnAmount: shortestTurn,
+      elapsed: 0,
+      duration: 0.64,
+    };
+    movingRef.current = true;
+  }, [target]);
 
   useFrame((_, delta) => {
     const group = groupRef.current;
-    if (!group) return;
-    group.position.x = THREE.MathUtils.damp(group.position.x, target.x, 11, delta);
-    group.position.z = THREE.MathUtils.damp(group.position.z, target.z, 11, delta);
-    const distance = group.position.distanceTo(target);
-    group.position.y = distance > 0.08 ? Math.sin(Math.min(1, distance) * Math.PI) * 0.45 : 0;
+    const animation = animationRef.current;
+    if (!group || !animation) return;
+    animation.elapsed = Math.min(animation.duration, animation.elapsed + delta);
+    const rawProgress = animation.elapsed / animation.duration;
+    const progress = rawProgress * rawProgress * (3 - 2 * rawProgress);
+    const turnProgress = Math.min(1, rawProgress / 0.42);
+    const easedTurn = 1 - ((1 - turnProgress) ** 3);
+    group.position.lerpVectors(animation.from, animation.to, progress);
+    group.rotation.y = animation.fromRotation + animation.turnAmount * easedTurn;
+    group.position.y = Math.sin(rawProgress * Math.PI) * 0.82;
+    group.rotation.z = -Math.sin(rawProgress * Math.PI) * 0.08;
+    const stretch = Math.sin(rawProgress * Math.PI);
+    group.scale.set(1 - stretch * 0.08, 1 + stretch * 0.12, 1 - stretch * 0.08);
+    if (rawProgress >= 1) {
+      group.position.copy(animation.to);
+      group.scale.setScalar(1);
+      group.rotation.z = 0;
+      animationRef.current = null;
+      movingRef.current = false;
+    }
   });
 
   return (
     <group ref={groupRef} position={boardToWorld(cell)}>
       <pointLight position={[0, 1.3, 0.5]} color="#dff7ff" intensity={0.9} distance={3} />
-      <Model url={`${MODEL_ROOTS.characters}/character-female-c.glb`} color="#7cc9ff" targetSize={1.45} />
-      <Html position={[0, 1.7, 0]} center>
+      <CourierModel movingRef={movingRef} showDirection />
+      <Html position={[0, 2.82, 0]} center>
+        <div className="player-facing-tag">朝向 {boardDirectionGlyphs[facingDirection] || "↑"}</div>
+      </Html>
+      <Html position={[0, 2.42, 0]} center>
         <div className="player-name-tag">跳跳邮递员</div>
       </Html>
     </group>
@@ -520,14 +701,41 @@ function BoardPlayer({ cell }) {
 
 function MovingBoardMail({ token, cell }) {
   const groupRef = useRef(null);
+  const animationRef = useRef(null);
   const target = useMemo(() => new THREE.Vector3(...boardToWorld(cell, 0.85)), [cell.col, cell.row]);
+
+  useEffect(() => {
+    const group = groupRef.current;
+    if (!group) return;
+    animationRef.current = {
+      from: group.position.clone(),
+      to: target.clone(),
+      elapsed: 0,
+      duration: 0.64,
+    };
+  }, [target]);
 
   useFrame(({ clock }, delta) => {
     const group = groupRef.current;
     if (!group) return;
-    group.position.x = THREE.MathUtils.damp(group.position.x, target.x, 9, delta);
-    group.position.z = THREE.MathUtils.damp(group.position.z, target.z, 9, delta);
-    group.position.y = target.y + Math.sin(clock.elapsedTime * 3 + token.start.col) * 0.12;
+    const animation = animationRef.current;
+    if (animation) {
+      animation.elapsed = Math.min(animation.duration, animation.elapsed + delta);
+      const rawProgress = animation.elapsed / animation.duration;
+      const progress = rawProgress * rawProgress * (3 - 2 * rawProgress);
+      group.position.lerpVectors(animation.from, animation.to, progress);
+      const hopHeight = token.pattern === "teleport" ? 1.45 : 0.72;
+      group.position.y += Math.sin(rawProgress * Math.PI) * hopHeight;
+      const pulse = Math.sin(rawProgress * Math.PI);
+      group.scale.setScalar(1 + pulse * 0.18);
+      if (rawProgress >= 1) {
+        group.position.copy(animation.to);
+        group.scale.setScalar(1);
+        animationRef.current = null;
+      }
+    } else {
+      group.position.y = target.y + Math.sin(clock.elapsedTime * 3 + token.start.col) * 0.12;
+    }
     group.rotation.y += delta * 1.6;
   });
 
@@ -551,6 +759,7 @@ function MovingBoardMail({ token, cell }) {
 
 function HallWorld({
   playerCell,
+  playerFacingDirection,
   tokenStates,
   currentNearbyRoomId,
   openRoomIds,
@@ -616,7 +825,7 @@ function HallWorld({
             cell={tokenStates[token.id] || token.start}
           />
         ))}
-      <BoardPlayer cell={playerCell} />
+      <BoardPlayer cell={playerCell} facingDirection={playerFacingDirection} />
       <OrbitControls enablePan={false} enableRotate={false} enableZoom={false} />
     </>
   );
@@ -667,6 +876,7 @@ function RoomAnimal({ mission, completed, canTalk, registerPosition, onTalk }) {
 
 function RoomMovementController({
   playerRef,
+  playerMovingRef,
   animalPositionRef,
   dpadState,
   onNearbyChange,
@@ -709,11 +919,14 @@ function RoomMovementController({
       - (keys.current.forward || dpadState.current.forward ? 1 : 0);
 
     if (moveX || moveZ) {
+      playerMovingRef.current = true;
       const length = Math.hypot(moveX, moveZ) || 1;
       const speed = 3.5 * delta;
       player.position.x = THREE.MathUtils.clamp(player.position.x + (moveX / length) * speed, -3.35, 3.35);
       player.position.z = THREE.MathUtils.clamp(player.position.z + (moveZ / length) * speed, -2.45, 2.25);
       player.rotation.y = Math.atan2(moveX, moveZ);
+    } else {
+      playerMovingRef.current = false;
     }
 
     const animal = animalPositionRef.current;
@@ -805,6 +1018,7 @@ function RoomWorld({
   onExitRoom,
 }) {
   const playerRef = useRef(null);
+  const playerMovingRef = useRef(false);
   const animalPositionRef = useRef(new THREE.Vector3(0.8, 0, -0.2));
 
   return (
@@ -849,9 +1063,10 @@ function RoomWorld({
         }}
         onTalk={() => onTalk(true)}
       />
-      <Player playerRef={playerRef} />
+      <Player playerRef={playerRef} movingRef={playerMovingRef} />
       <RoomMovementController
         playerRef={playerRef}
+        playerMovingRef={playerMovingRef}
         animalPositionRef={animalPositionRef}
         dpadState={dpadState}
         onNearbyChange={onNpcNearby}
@@ -862,15 +1077,15 @@ function RoomWorld({
   );
 }
 
-function V2Dpad({ dpadState, discrete = false, onMove }) {
+function V2Dpad({ dpadState, discrete = false, onMove, disabled = false }) {
   if (discrete) {
     return (
-      <div className="delivery-dpad v2-dpad board-dpad" aria-label="跳跳棋移动按钮">
-        <button onClick={() => onMove("forward")} aria-label="向上跳一格">↑</button>
+      <div className={`delivery-dpad v2-dpad board-dpad ${disabled ? "moving" : ""}`} aria-label="跳跳棋移动按钮">
+        <button disabled={disabled} onClick={() => onMove("forward")} aria-label="向上跳一格">↑</button>
         <div>
-          <button onClick={() => onMove("left")} aria-label="向左跳一格">←</button>
-          <button onClick={() => onMove("backward")} aria-label="向下跳一格">↓</button>
-          <button onClick={() => onMove("right")} aria-label="向右跳一格">→</button>
+          <button disabled={disabled} onClick={() => onMove("left")} aria-label="向左跳一格">←</button>
+          <button disabled={disabled} onClick={() => onMove("backward")} aria-label="向下跳一格">↓</button>
+          <button disabled={disabled} onClick={() => onMove("right")} aria-label="向右跳一格">→</button>
         </div>
       </div>
     );
@@ -1065,9 +1280,14 @@ function speak(text, enabled) {
 
 export default function V2EmotionPostOffice({ onBackToModeChoice }) {
   const dpadState = useRef({ forward: false, backward: false, left: false, right: false });
+  const boardAnimationTimerRef = useRef(null);
+  const boardAnimatingRef = useRef(false);
   const [boardPlayerCell, setBoardPlayerCell] = useState({ col: 3, row: 2 });
+  const [boardFacingDirection, setBoardFacingDirection] = useState("forward");
   const [boardTokenStates, setBoardTokenStates] = useState(createInitialTokenStates);
   const [boardTurn, setBoardTurn] = useState(0);
+  const [boardAnimating, setBoardAnimating] = useState(false);
+  const [boardRulesOpen, setBoardRulesOpen] = useState(false);
   const [boardMessage, setBoardMessage] = useState("每跳一格，所有星光邮件也会按自己的规律移动一格。");
   const [currentRoomId, setCurrentRoomId] = useState(null);
   const [storyType, setStoryType] = useState("");
@@ -1155,6 +1375,10 @@ export default function V2EmotionPostOffice({ onBackToModeChoice }) {
     return () => window.clearTimeout(timer);
   }, [mailToast]);
 
+  useEffect(() => () => {
+    if (boardAnimationTimerRef.current) window.clearTimeout(boardAnimationTimerRef.current);
+  }, []);
+
   useEffect(() => {
     if (currentRoomId || storyType) return undefined;
     const handleBoardKey = (event) => {
@@ -1169,7 +1393,7 @@ export default function V2EmotionPostOffice({ onBackToModeChoice }) {
         d: "right",
         arrowright: "right",
       }[key];
-      if (!direction || event.repeat) return;
+      if (!direction || event.repeat || boardAnimatingRef.current) return;
       event.preventDefault();
       moveOnBoard(direction);
     };
@@ -1279,6 +1503,7 @@ export default function V2EmotionPostOffice({ onBackToModeChoice }) {
   };
 
   const moveOnBoard = (direction) => {
+    if (boardAnimatingRef.current) return;
     const offsets = {
       forward: { col: 0, row: -1 },
       backward: { col: 0, row: 1 },
@@ -1311,19 +1536,34 @@ export default function V2EmotionPostOffice({ onBackToModeChoice }) {
     });
 
     setBoardPlayerCell(nextPlayer);
+    setBoardFacingDirection(direction);
     setBoardTokenStates(nextTokens);
     setBoardTurn(nextTurn);
+    boardAnimatingRef.current = true;
+    setBoardAnimating(true);
+    setBoardMessage(`第 ${nextTurn} 回合移动中：邮递员面向 ${boardDirectionGlyphs[direction]} 起跳，邮件同时移动……`);
 
-    if (captured.length) {
-      captured.forEach((token) => collectMail(token.id));
-      setBoardMessage(`第 ${nextTurn} 回合捕获 ${captured.map((token) => token.name).join("、")}！`);
-    } else {
-      setBoardMessage(`第 ${nextTurn} 回合：你跳到第 ${nextPlayer.col + 1} 列、第 ${nextPlayer.row + 1} 行，邮件也完成了移动。`);
-    }
+    if (boardAnimationTimerRef.current) window.clearTimeout(boardAnimationTimerRef.current);
+    boardAnimationTimerRef.current = window.setTimeout(() => {
+      if (captured.length) {
+        captured.forEach((token) => collectMail(token.id));
+        setBoardMessage(`第 ${nextTurn} 回合捕获 ${captured.map((token) => token.name).join("、")}！`);
+      } else {
+        setBoardMessage(`第 ${nextTurn} 回合：你跳到第 ${nextPlayer.col + 1} 列、第 ${nextPlayer.row + 1} 行，邮件也完成了移动。`);
+      }
+      boardAnimatingRef.current = false;
+      setBoardAnimating(false);
+      boardAnimationTimerRef.current = null;
+    }, 700);
   };
 
   const resetBoardGame = () => {
+    if (boardAnimationTimerRef.current) window.clearTimeout(boardAnimationTimerRef.current);
+    boardAnimationTimerRef.current = null;
+    boardAnimatingRef.current = false;
+    setBoardAnimating(false);
     setBoardPlayerCell({ col: 3, row: 2 });
+    setBoardFacingDirection("forward");
     setBoardTokenStates(createInitialTokenStates());
     setBoardTurn(0);
     setCollectedMailIds([]);
@@ -1470,6 +1710,7 @@ export default function V2EmotionPostOffice({ onBackToModeChoice }) {
           ) : (
             <HallWorld
               playerCell={boardPlayerCell}
+              playerFacingDirection={boardFacingDirection}
               tokenStates={boardTokenStates}
               currentNearbyRoomId={nearbyRoomId}
               openRoomIds={openRoomIds}
@@ -1487,29 +1728,42 @@ export default function V2EmotionPostOffice({ onBackToModeChoice }) {
           dpadState={dpadState}
           discrete={!currentRoom}
           onMove={moveOnBoard}
+          disabled={!currentRoom && boardAnimating}
         />
         {!currentRoom && (
-          <aside className="board-rule-panel">
-            <header>
-              <strong>跳跳棋追信</strong>
-              <div>
-                <span>回合 {boardTurn}</span>
-                <button onClick={resetBoardGame}>重新开局</button>
-              </div>
-            </header>
-            <p>{boardMessage}</p>
-            <div>
-              {hallMailTokens.map((token) => (
-                <article className={collectedMailIds.includes(token.id) ? "caught" : ""} key={token.id}>
-                  <i style={{ background: token.color }} />
-                  <span>
-                    <strong>{token.name}</strong>
-                    <small>{collectedMailIds.includes(token.id) ? "已捕获" : token.rule}</small>
-                  </span>
-                </article>
-              ))}
-            </div>
-          </aside>
+          <>
+            <button
+              className={`board-rules-toggle ${boardRulesOpen ? "active" : ""}`}
+              onClick={() => setBoardRulesOpen((value) => !value)}
+              aria-expanded={boardRulesOpen}
+            >
+              {boardRulesOpen ? "收起追信规律" : `追信规律 ${collectedMailIds.length}/${hallMailTokens.length}`}
+            </button>
+            {boardAnimating && <div className="v2-turn-motion" role="status">全员移动中</div>}
+            {boardRulesOpen && (
+              <aside className="board-rule-panel">
+                <header>
+                  <strong>跳跳棋追信</strong>
+                  <div>
+                    <span>回合 {boardTurn}</span>
+                    <button onClick={resetBoardGame}>重新开局</button>
+                  </div>
+                </header>
+                <p>{boardMessage}</p>
+                <div>
+                  {hallMailTokens.map((token) => (
+                    <article className={collectedMailIds.includes(token.id) ? "caught" : ""} key={token.id}>
+                      <i style={{ background: token.color }} />
+                      <span>
+                        <strong>{token.name}</strong>
+                        <small>{collectedMailIds.includes(token.id) ? "已捕获" : token.rule}</small>
+                      </span>
+                    </article>
+                  ))}
+                </div>
+              </aside>
+            )}
+          </>
         )}
         {currentRoom && (
           <button

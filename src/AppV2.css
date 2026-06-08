@@ -480,6 +480,20 @@
   white-space: nowrap;
 }
 
+.player-facing-tag {
+  min-width: 70px;
+  padding: 4px 9px;
+  border: 2px solid #4a3728;
+  border-radius: 999px;
+  background: #ff6f7d;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: 2px 2px 0 #4a3728;
+}
+
 .board-mail-label {
   padding: 4px 7px;
   border: 2px solid #4a3728;
@@ -494,12 +508,12 @@
 .board-rule-panel {
   position: absolute;
   left: 14px;
-  bottom: 14px;
+  bottom: 68px;
   z-index: 6;
   display: grid;
   gap: 8px;
-  width: min(330px, calc(100% - 220px));
-  max-height: 330px;
+  width: min(330px, calc(100% - 28px));
+  max-height: 310px;
   overflow: auto;
   padding: 12px;
   border: 3px solid #4a3728;
@@ -507,6 +521,56 @@
   background: rgba(255, 253, 245, 0.94);
   color: #4a3728;
   box-shadow: 4px 4px 0 #4a3728;
+  animation: board-panel-in 180ms ease-out;
+}
+
+.board-rules-toggle {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 7;
+  min-height: 42px;
+  padding: 8px 13px;
+  border: 3px solid #4a3728;
+  border-radius: 999px;
+  background: rgba(255, 253, 245, 0.94);
+  color: #4a3728;
+  cursor: pointer;
+  font-weight: 900;
+  box-shadow: 3px 3px 0 #4a3728;
+}
+
+.board-rules-toggle.active {
+  background: #ffd766;
+}
+
+.v2-turn-motion {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  z-index: 7;
+  padding: 9px 16px;
+  border: 3px solid #4a3728;
+  border-radius: 999px;
+  background: #dff4ff;
+  color: #4a3728;
+  font-weight: 900;
+  box-shadow: 3px 3px 0 #4a3728;
+  transform: translateX(-50%);
+  animation: turn-motion-pulse 360ms ease-in-out infinite alternate;
+}
+
+@keyframes board-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+}
+
+@keyframes turn-motion-pulse {
+  to {
+    transform: translate(-50%, -5px) scale(1.04);
+  }
 }
 
 .board-rule-panel > header {
@@ -588,6 +652,17 @@
 
 .board-dpad button {
   background: #ffd766;
+}
+
+.board-dpad.moving {
+  background: rgba(223, 244, 255, 0.9);
+}
+
+.delivery-dpad button:disabled {
+  cursor: wait;
+  opacity: 0.5;
+  transform: translateY(2px);
+  box-shadow: none;
 }
 
 .v2-door-label {
@@ -1085,10 +1160,20 @@
   }
 
   .board-rule-panel {
-    top: 52px;
+    top: 150px;
     bottom: auto;
+    box-sizing: border-box;
     width: min(260px, calc(100% - 28px));
-    max-height: 170px;
+    max-height: 118px;
+  }
+
+  .board-rules-toggle {
+    top: 100px;
+    bottom: auto;
+  }
+
+  .v2-turn-motion {
+    bottom: 182px;
   }
 
   .v2-talk-button {
